@@ -47,12 +47,19 @@ class GitRewindGraphViewProvider implements vscode.WebviewViewProvider {
 
   private setupMessageHandler() {
     if (!this.view) return;
-    
-    this.view.webview.onDidReceiveMessage((message) => {
+
+    // Dispose previous listener to avoid stacking
+    if (this.disposables.length) {
+      this.disposables.forEach(d => d.dispose());
+      this.disposables = [];
+    }
+
+    const d = this.view.webview.onDidReceiveMessage((message) => {
       if (message.command === 'openGraph') {
         vscode.commands.executeCommand('GitRewind.showHistory');
       }
     });
+    this.disposables.push(d);
   }
 
   private updateHtml() {
@@ -382,29 +389,81 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  // Compare File Command
+  // Compare File Command: Opens Timeline in "Filter Mode"
   let compareFileDisposable = vscode.commands.registerCommand('codeTimeMachine.compareFile', async (hash: string, filePath: string) => {
-    // If filePath is missing, we could prompt for it, but for now assuming it comes from UI
     if (!filePath) {
       vscode.window.showErrorMessage("Please select a file to compare.");
       return;
     }
 
+    // Capture the state so we know what we are comparing AGAINST
     compareState = { hash, path: filePath };
 
-    // Focus Timeline and set mode
-    if (TimelinePanel.currentPanel) {
-      TimelinePanel.currentPanel.setSelectMode(true, `Select a commit to compare '${path.basename(filePath)}' with...`);
-    } else {
+    // 1. Ensure Timeline is Open
+    let wasClosed = false;
+    if (!TimelinePanel.currentPanel) {
+      wasClosed = true;
+      // If not open, open it (this might reload the whole graph, which is fine)
       const workspaceFolders = vscode.workspace.workspaceFolders;
       if (workspaceFolders) {
+        console.log('[CompareFile] Opening timeline panel...');
         await showRepoTimeline(context, workspaceFolders[0].uri.fsPath);
-        // After showing, set mode
-        setTimeout(() => {
-          if (TimelinePanel.currentPanel) {
-            TimelinePanel.currentPanel.setSelectMode(true, `Select a commit to compare '${path.basename(filePath)}' with...`);
+      } else {
+        console.error('[CompareFile] No workspace folders found.');
+      }
+    }
+
+    // 2. Set Filter Mode on Timeline
+    if (TimelinePanel.currentPanel) {
+      // We need to tell the timeline to:
+      // a) Fade out commits that DON'T touch this file
+      // b) Enter "Select Mode" to pick the *other* commit
+
+      // We need to know WHICH commits touch this file to pass to the webview
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+      if (workspaceRoot) {
+        const gitService = await GitService.create(workspaceRoot);
+        if (gitService) {
+          // Get history for this file to know valid hashes
+          // console.log(`[Compare] Fetching history for ${filePath}`);
+          try {
+            const fileCommits = await gitService.getFileHistory(filePath, 1000); // Fetch enough history
+            const validHashes = fileCommits.map(c => c.hash);
+            // console.log(`[Compare] Valid hashes count: ${validHashes.length}`);
+
+            // Add a small delay to ensure webview is ready if it was just opened
+            // This addresses the race condition where the webview script hasn't registered the message listener yet
+            setTimeout(() => {
+              if (TimelinePanel.currentPanel) {
+                // console.log(`[Compare] Sending setFilter message`);
+                TimelinePanel.currentPanel.setFilter(filePath, validHashes, `Select a commit to compare '${path.basename(filePath)}' with...`);
+              } else {
+                console.error('[Compare] TimelinePanel closed before filter could be set.');
+              }
+            }, 1000);
+          } catch (err) {
+            console.error('[Compare] Error fetching file history:', err);
+            vscode.window.showErrorMessage(`Failed to compare file: ${err}`);
           }
-        }, 800);
+        } else {
+          console.error('[Compare] Failed to create GitService.');
+        }
+
+        // Force Reveal the Timeline Panel to the side (Column 2) if possible, or Active
+        // This ensures the user sees the graph update
+        if (TimelinePanel.currentPanel && !wasClosed) {
+          // Only forcefully reveal if it was already open and might be hidden.
+          // If it was closed, showRepoTimeline above already revealed it.
+          // We use a small timeout to let the panel filter logic run, or run it here
+          setTimeout(() => {
+            if (TimelinePanel.currentPanel) {
+              TimelinePanel.currentPanel.reveal(vscode.ViewColumn.One);
+            }
+
+            // NOW set the filter (or re-set it to be sure)
+            // We do this inside the timeout where we have the data
+          }, 100);
+        }
       }
     }
   });
@@ -426,10 +485,22 @@ export function activate(context: vscode.ExtensionContext) {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     if (!workspaceRoot) return;
 
-    // Source URI (from Commit A)
-    const sourceUri = vscode.Uri.parse(`${GitFileSystemProvider.scheme}:/${relativePath}?hash=${sourceHash}`);
-    // Target URI (from Commit B)
-    const targetUri = vscode.Uri.parse(`${GitFileSystemProvider.scheme}:/${relativePath}?hash=${hash}`);
+    // Construct URIs matching GitFileSystemProvider expectations:
+    // scheme://<hash>/<path>?<workspaceRoot>
+    const makeUri = (commitHash: string, pathStr: string) => {
+      const safePath = pathStr.startsWith('/') ? pathStr : '/' + pathStr;
+      return vscode.Uri.from({
+        scheme: GitFileSystemProvider.scheme,
+        authority: commitHash,
+        path: safePath,
+        query: workspaceRoot
+      });
+    };
+
+    // Source URI (from Commit A - the one we started with)
+    const sourceUri = makeUri(sourceHash, relativePath);
+    // Target URI (from Commit B - the one we selected in the graph)
+    const targetUri = makeUri(hash, relativePath);
 
     const compareTitle = `${path.basename(relativePath)} (${sourceHash.substring(0, 7)} ↔ ${hash.substring(0, 7)})`;
 
@@ -512,9 +583,16 @@ async function showRepoTimeline(context: vscode.ExtensionContext, targetPath: st
     title: `Loading Git Graph (${limit} commits)...`,
     cancellable: false
   }, async () => {
-    const commits = await gitService.getCommitGraph(limit); // Fetch last 100
+    const commits = await gitService.getCommitGraph(limit + 1); // Fetch limit + 1 to check for more
+    let hasMore = false;
+    if (commits.length > limit) {
+      hasMore = true;
+      commits.pop(); // Remove the extra one
+    }
+
     const graphEngine = new GraphEngine();
     const graphData = graphEngine.process(commits);
+    graphData.hasMore = hasMore;
 
     // Pre-fetch details for the latest commit to avoid race conditions
     let initialDetails = undefined;
@@ -556,8 +634,19 @@ async function showCommitDetails(context: vscode.ExtensionContext, hash: string)
       return;
     }
 
+    // Fetch all files to determine unchanged files
+    const allFiles = await gitService.getTree(hash);
+    // Filter out files that are already in the changed list
+    // details.files contains { path: string, ... }
+    const changedPaths = new Set((details.files || []).map(f => f.path));
+    const unchangedFiles = allFiles.filter(f => !changedPaths.has(f));
+
+    // Extend details object with unchanged files
+    // check if we need to cast to any or if we can just extend
+    const detailsWithUnchanged = { ...details, unchangedFiles };
+
     // Open detailed view in a new panel (new tab)
-    CommitDetailsPanel.createOrShow(context.extensionUri, details);
+    CommitDetailsPanel.createOrShow(context.extensionUri, detailsWithUnchanged);
 
   } catch (e) {
     vscode.window.showErrorMessage("Error loading details: " + e);

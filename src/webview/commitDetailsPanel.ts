@@ -217,11 +217,17 @@ export class CommitDetailsPanel {
 
                 const safePath = node.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
 
+                // Logic: Only show compare button if status is Modified (M) or Added (A)
+                const showCompare = node.status === 'M' || node.status === 'A';
+                const compareBtn = showCompare
+                    ? `<button class="action-btn file-action-btn" title="Compare with another commit" onclick="event.stopPropagation(); compareFile('${details.hash}', '${safePath}')">⚖️</button>`
+                    : '';
+
                 return `<li class="file-item ${statusClass}" onclick="openFile('${details.hash}', '${safePath}', '${node.status}')" style="padding-left: ${indent + 20}px">
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${node.name}</span>
                     <span class="status-badge ${statusClass}">${statusIcon} ${node.status === 'A' ? 'Added' : node.status === 'D' ? 'Deleted' : 'Modified'}</span>
-                    <button class="action-btn file-action-btn" title="Compare with another commit" onclick="event.stopPropagation(); compareFile('${details.hash}', '${safePath}')">⚖️</button>
+                    ${compareBtn}
                 </li>`;
             } else {
                 const childrenHtml = Object.values(node.children || {})
@@ -501,17 +507,20 @@ export class CommitDetailsPanel {
 
                 .file-action-btn {
                     padding: 2px 6px;
-                    margin-left: auto;
-                    font-size: 0.8rem;
-                    opacity: 0.6;
+                    margin-left: 10px;
+                    font-size: 0.9rem; /* Slightly larger */
+                    opacity: 1; /* Fully visible */
                     background: transparent;
-                    color: var(--text-color);
+                    color: var(--vscode-button-foreground); /* Use button color instead of text color for better visibility */
+                    background-color: var(--vscode-button-background); /* generic button bg */
+                    border-radius: 4px;
+                    border: none;
+                    cursor: pointer;
                     box-shadow: none;
                 }
                 .file-action-btn:hover {
-                     opacity: 1;
-                     background: var(--vscode-list-hoverBackground);
-                     transform: scale(1.1);
+                     background: var(--vscode-button-hoverBackground);
+                     transform: scale(1.05);
                 }
 
             </style>
@@ -532,12 +541,27 @@ export class CommitDetailsPanel {
                     ${treeHtml ? `<ul>${treeHtml}</ul>` : '<div style="padding:40px; text-align:center; opacity:0.5">No file changes found in this commit.</div>'}
                 </div>
 
+                ${details.unchangedFiles && details.unchangedFiles.length > 0 ? `
+                <div class="unchanged-section" style="margin-top: 20px; border-top: 1px solid var(--border-color); padding-top: 10px;">
+                    <details>
+                        <summary>Unchanged Files (${details.unchangedFiles.length})</summary>
+                        <ul style="list-style: none; padding-left: 0; margin-top: 10px;">
+                            ${details.unchangedFiles.map((file: string) => {
+            const fileName = file.split('/').pop();
+            const safePath = file.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            return `
+                                <li class="file-item" style="padding: 4px 8px; display: flex; align-items: center; gap: 8px;">
+                                    <span class="file-icon">📄</span>
+                                    <span class="file-name" style="opacity: 0.8;">${file}</span>
+                                    <button class="action-btn file-action-btn" title="Compare with another commit" onclick="event.stopPropagation(); compareFile('${details.hash}', '${safePath}')">⚖️</button>
+                                </li>`;
+        }).join('')}
+                        </ul>
+                    </details>
+                </div>
+                ` : ''}
+
                 <div class="actions-footer">
-                    <div class="main-actions">
-                        <button class="action-btn" onclick="compareFile('${details.hash}')">⚖️ Compare File...</button>
-                        <button class="action-btn" onclick="browseFiles('${details.hash}')">📂 Browse Files</button>
-                    </div>
-                    
                     <div class="advanced-section">
                         <details>
                             <summary>Advanced Options</summary>

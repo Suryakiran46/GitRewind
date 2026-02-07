@@ -21,6 +21,7 @@ export interface GraphData {
     links: GraphLink[];
     height: number;
     width: number;
+    hasMore?: boolean;
 }
 
 export class GraphEngine {

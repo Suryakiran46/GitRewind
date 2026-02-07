@@ -14,7 +14,7 @@ export class TimelinePanel {
 
         if (TimelinePanel.currentPanel) {
             try {
-                TimelinePanel.currentPanel.panel.reveal(column);
+                TimelinePanel.currentPanel.reveal(column);
                 TimelinePanel.currentPanel.update(graphData);
                 return;
             } catch (e) {
@@ -92,6 +92,14 @@ export class TimelinePanel {
         this.postMessage({ command: 'setSelectMode', active, message });
     }
 
+    public setFilter(filePath: string, validHashes: string[], message?: string) {
+        this.postMessage({ command: 'setFilter', filter: { path: filePath, validHashes, message } });
+    }
+
+    public reveal(column: vscode.ViewColumn) {
+        this.panel.reveal(column);
+    }
+
     public dispose() {
         TimelinePanel.currentPanel = undefined;
         this.panel.dispose();
@@ -112,7 +120,7 @@ export class TimelinePanel {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Git Timeline (Colors Updated)</title>
+            <title>Git Timeline</title>
             <style>
                 :root {
                     --git-merge: #ff9800;
@@ -437,7 +445,7 @@ export class TimelinePanel {
             const safeMessage = node.message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
             return `
-                                <g class="node-group" onclick="selectCommit('${node.hash}')" transform="translate(${node.x}, ${node.y})">
+                                <g class="node-group" data-hash="${node.hash}" onclick="selectCommit('${node.hash}')" transform="translate(${node.x}, ${node.y})">
                                     <!-- Avatar (Left of Node) -->
                                     <g class="avatar-group" transform="translate(-25, 0)">
                                         <title>${this.escapeHtml(node.author)}${node.email ? ' &lt;' + this.escapeHtml(node.email) + '&gt;' : ''}</title>
@@ -549,7 +557,10 @@ export class TimelinePanel {
                         </svg>
                     </div>
                     <div style="text-align: center; padding: 20px; min-height: 50px;">
-                        <button onclick="loadMore()" style="padding: 8px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; border-radius: 2px;">Load More Commits...</button>
+                        ${graphData.hasMore !== false ?
+                `<button onclick="loadMore()" style="padding: 8px 16px; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; cursor: pointer; border-radius: 2px;">Load More Commits...</button>` :
+                `<span style="color: var(--vscode-descriptionForeground);">No more commits</span>`
+            }
                     </div>
                 </div>
             </div>
@@ -660,16 +671,54 @@ export class TimelinePanel {
                     switch (message.command) {
                         case 'setSelectMode':
                             selectMode = message.active;
-                            const banner = document.getElementById('selection-banner');
-                            if (banner) {
-                                if (selectMode) {
-                                    banner.innerText = message.message || 'Select a commit...';
-                                    banner.classList.add('active');
-                                } else {
-                                    banner.classList.remove('active');
-                                }
-                            }
+                            updateBanner(message.message);
                             break;
+                        case 'setFilter':
+                            // Enable select mode implicitly
+                            selectMode = true;
+                            updateBanner(message.filter.message);
+                            
+                            // Apply Filter Visuals
+                            const validHashes = new Set(message.filter.validHashes);
+                            // Fade out invalid nodes
+                            // We need to iterate over all node-groups
+                            const groups = document.querySelectorAll('.node-group');
+                            groups.forEach(g => {
+                                // Extract hash from data attribute
+                                const hash = g.getAttribute('data-hash');
+                                if (hash) {
+                                    if (validHashes.has(hash)) {
+                                        g.style.opacity = '1';
+                                        g.style.pointerEvents = 'auto';
+                                    } else {
+                                        g.style.opacity = '0.1';
+                                        g.style.pointerEvents = 'none';
+                                    }
+                                }
+                            });
+                            
+                            // Also fade links? links are harder to map to commits.
+                            // For now, let's just fade nodes.
+                            break;
+                    }
+
+                    function updateBanner(msg) {
+                        const banner = document.getElementById('selection-banner');
+                        if (banner) {
+                            if (selectMode) {
+                                banner.innerText = msg || 'Select a commit...';
+                                banner.style.display = 'block'; // Force display
+                                banner.classList.add('active');
+                            } else {
+                                banner.classList.remove('active');
+                                banner.style.display = 'none';
+                                // Reset opacity
+                                document.querySelectorAll('.node-group').forEach(g => {
+                                    g.style.opacity = '1';
+                                    g.style.pointerEvents = 'auto';
+                                });
+                            }
+                        }
                     }
                 });
 
