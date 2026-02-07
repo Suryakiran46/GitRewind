@@ -9,7 +9,7 @@ export class TimelinePanel {
     private readonly extensionUri: vscode.Uri;
     private disposables: vscode.Disposable[] = [];
 
-    public static createOrShow(extensionUri: vscode.Uri, graphData: GraphData, initialDetails?: any) {
+    public static createOrShow(extensionUri: vscode.Uri, graphData: GraphData) {
         const column = vscode.ViewColumn.One;
 
         if (TimelinePanel.currentPanel) {
@@ -28,10 +28,10 @@ export class TimelinePanel {
             }
         );
 
-        TimelinePanel.currentPanel = new TimelinePanel(panel, extensionUri, graphData, initialDetails);
+        TimelinePanel.currentPanel = new TimelinePanel(panel, extensionUri, graphData);
     }
 
-    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, graphData: GraphData, initialDetails?: any) {
+    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, graphData: GraphData) {
         this.panel = panel;
         this.extensionUri = extensionUri;
 
@@ -66,11 +66,11 @@ export class TimelinePanel {
             this.disposables
         );
 
-        this.update(graphData, initialDetails);
+        this.update(graphData);
     }
 
-    public update(graphData: GraphData, initialDetails?: any) {
-        this.panel.webview.html = this.getHtmlForWebview(graphData, initialDetails);
+    public update(graphData: GraphData) {
+        this.panel.webview.html = this.getHtmlForWebview(graphData);
     }
 
     public postMessage(message: any) {
@@ -91,7 +91,7 @@ export class TimelinePanel {
         return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
 
-    private getHtmlForWebview(graphData: GraphData, initialDetails?: any): string {
+    private getHtmlForWebview(graphData: GraphData): string {
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -164,95 +164,12 @@ export class TimelinePanel {
                     transition: transform 0.1s ease-out;
                 }
                 
-                /* Modal Styles */
-                #modal-overlay {
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background: rgba(0, 0, 0, 0.6); /* Dimmed background */
-                    backdrop-filter: blur(4px); /* Blur effect */
-                    z-index: 200;
-                    display: none; /* Hidden by default */
-                    align-items: center; /* Vertical Center */
-                    justify-content: center; /* Horizontal Center */
-                    opacity: 0;
-                    transition: opacity 0.2s ease;
-                }
-                #modal-overlay.active {
-                    display: flex;
-                    opacity: 1;
-                }
-
-                #details-modal {
-                    background-color: var(--vscode-sideBar-background);
-                    width: 90%; /* Full Width as requested */
-                    max-height: 85vh; /* Half to 3/4 height */
-                    border-radius: 8px;
-                    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
-                    border: 1px solid var(--vscode-panel-border);
-                    display: flex;
-                    flex-direction: column;
-                    transform: scale(0.95);
-                    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-                    overflow: hidden;
-                    position: relative;
-                }
-                #modal-overlay.active #details-modal {
-                    transform: scale(1);
-                }
-
                 svg { display: block; }
                 .node { cursor: pointer; transition: r 0.2s; }
                 .node:hover { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
                 .branch-line { fill: none; stroke-width: 2px; stroke-linecap: round; opacity: 0.6; }
                 .avatar-group text { font-size: 10px; font-family: var(--vscode-font-family); fill: var(--vscode-editor-foreground); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
                 .avatar-circle { fill: var(--vscode-sideBar-background); stroke: var(--vscode-panel-border); stroke-width: 1px; cursor: pointer; }
-                
-                /* Details Panel Content Styles */
-                .details-header { padding: 20px; border-bottom: 1px solid var(--vscode-panel-border); background: var(--vscode-editor-background); position: relative;}
-                .close-btn { 
-                    position: absolute; top: 15px; right: 15px; 
-                    background: none; border: none; color: var(--vscode-foreground); 
-                    font-size: 20px; cursor: pointer; opacity: 0.7; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; border-radius: 4px; z-index: 10;
-                }
-                .close-btn:hover { opacity: 1; background: var(--vscode-list-hoverBackground); }
-
-                .details-header h2 { margin: 0 0 10px 0; font-size: 1.4em; line-height: 1.4; padding-right: 40px; }
-                .meta-row { display: flex; align-items: center; gap: 15px; font-size: 0.9em; color: var(--vscode-descriptionForeground); margin-bottom: 0; }
-                .author-pill { display: flex; align-items: center; gap: 6px; background: var(--vscode-badge-background); color: var(--vscode-badge-foreground); padding: 4px 10px; border-radius: 12px; font-size: 0.9em; }
-                
-                .files-container { flex: 1; overflow-y: auto; padding: 0; display: flex; flex-direction: column; }
-                
-                .file-section { border-bottom: 1px solid var(--vscode-panel-border); }
-                .section-header { 
-                    padding: 8px 20px; 
-                    font-weight: 600; 
-                    font-size: 0.85em; 
-                    text-transform: uppercase; 
-                    letter-spacing: 0.5px;
-                    background: var(--vscode-editor-background);
-                    border-bottom: 1px solid var(--vscode-panel-border);
-                    display: flex; align-items: center; justify-content: space-between;
-                    position: sticky; top: 0;
-                }
-                .section-added { color: var(--git-added); border-left: 4px solid var(--git-added); }
-                .section-modified { color: var(--git-modified); border-left: 4px solid var(--git-modified); }
-                .section-deleted { color: var(--git-deleted); border-left: 4px solid var(--git-deleted); }
-
-                .file-list { list-style: none; padding: 0; margin: 0; }
-                .file-item { display: flex; align-items: center; padding: 10px 20px; border-bottom: 1px solid var(--vscode-panel-border); cursor: pointer; transition: background 0.1s; }
-                .file-item:last-child { border-bottom: none; }
-                .file-item:hover { background-color: var(--vscode-list-hoverBackground); }
-                .file-icon { margin-right: 12px; font-size: 1.1em; width: 20px; text-align: center; }
-                .file-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--vscode-editor-font-family); font-size: 0.95em; }
-                
-                .actions-footer { padding: 15px; border-top: 1px solid var(--vscode-panel-border); background: var(--vscode-editor-background); display: flex; gap: 10px; }
-                button.action-btn { flex: 1; background: var(--vscode-button-background); color: var(--vscode-button-foreground); border: none; padding: 10px 16px; cursor: pointer; border-radius: 2px; font-weight: 500;}
-                button.action-btn:hover { background: var(--vscode-button-hoverBackground); }
-                button.secondary { background: var(--vscode-button-secondaryBackground); color: var(--vscode-button-secondaryForeground); }
-                button.danger { background: var(--git-danger); color: white; }
             </style>
         </head>
         <body>
@@ -265,6 +182,16 @@ export class TimelinePanel {
                 <div id="zoom-wrapper">
                     <div id="content-layer">
                         <svg id="git-graph" width="${graphData.width}" height="${graphData.height}">
+                            <defs>
+                                ${graphData.nodes.map(node => {
+            const colorId = node.color.replace('#', '');
+            return `
+                                    <marker id="arrow-${colorId}" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
+                                        <path d="M0,0 L0,6 L9,3 z" fill="${node.color}" />
+                                    </marker>
+                                    `;
+        }).join('')}
+                            </defs>
                             <!-- Edges -->
                             ${graphData.links.map(link => {
             const sourceNode = graphData.nodes.find(n => n.hash === link.source);
@@ -281,7 +208,7 @@ export class TimelinePanel {
             const isPrimary = sourceNode.parents[0] === targetNode.hash;
 
             // Layout Tuning
-            const spacing = 50; // Vertical spacing (match GraphEngine)
+            const spacing = 80; // Vertical spacing (match GraphEngine)
             const radius = 10;
             const verticalGap = ty - sy; // Always positive (Time flows down)
 
@@ -307,23 +234,33 @@ export class TimelinePanel {
                 const r = Math.min(radius, Math.abs(tx - sx) / 2, Math.abs(midY - sy), Math.abs(ty - midY));
                 const dir = tx > sx ? 1 : -1;
 
-                // Strict Orthogonal Path (Vertical -> Turn -> Horizontal -> Turn -> Vertical)
-                // We ensure exact coordinates for the lines and explicit rounding
+                // Strict Orthogonal Path (Parent -> Child)
+                // We draw from Target (Parent/Bottom) to Source (Child/Top)
+                // so the marker-end arrow points to the Child.
 
-                // 1. Vertical from Source
-                d = `M ${sx} ${sy} ` +
-                    `L ${sx} ${midY - r} ` +
+                // 1. Vertical from Parent (Bottom)
+                d = `M ${tx} ${ty} ` +
+                    `L ${tx} ${midY + r} ` +
                     // 2. Turn to Horizontal
-                    `Q ${sx} ${midY} ${sx + dir * r} ${midY} ` +
+                    `Q ${tx} ${midY} ${tx - dir * r} ${midY} ` +
                     // 3. Horizontal Line
-                    `L ${tx - dir * r} ${midY} ` +
+                    `L ${sx + dir * r} ${midY} ` +
                     // 4. Turn to Vertical
-                    `Q ${tx} ${midY} ${tx} ${midY + r} ` +
-                    // 5. Vertical to Target
-                    `L ${tx} ${ty}`;
+                    `Q ${sx} ${midY} ${sx} ${midY - r} ` +
+                    // 5. Vertical to Child (Top)
+                    `L ${sx} ${sy}`;
             }
 
-            return `<path d="${d}" class="branch-line" stroke="${sourceNode.color}" />`;
+            // Only show arrow for non-vertical connections (merges/branches) or long jumps
+            // Use marker-end to point to the target node
+            // The marker ID is based on the source color: marker-arrow-[color-hex]
+            // We need to sanitize the color string to make a valid ID
+            const colorId = sourceNode.color.replace('#', '');
+            const markerAttr = (Math.abs(sx - tx) > 1) ? `marker-end="url(#arrow-${colorId})"` : '';
+
+            return `<path d="${d}" class="branch-line" stroke="${sourceNode.color}" stroke-width="2" fill="none" ${markerAttr} />`;
+
+
         }).join('')}
                             
                             <!-- Nodes -->
@@ -334,7 +271,6 @@ export class TimelinePanel {
 
             // Safe text handling for restoration
             const safeMessage = node.message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-            const truncatedMessage = safeMessage.length > 50 ? safeMessage.substring(0, 50) + '...' : safeMessage;
 
             return `
                                 <g class="node-group" onclick="selectCommit('${node.hash}')" transform="translate(${node.x}, ${node.y})">
@@ -348,13 +284,14 @@ export class TimelinePanel {
                                     <!-- Commit Node -->
                                     <circle cx="0" cy="0" r="${isMerge ? 8 : 6}" fill="${fillColor}" stroke="#fff" stroke-width="2" class="node"></circle>
                                     
-                                    <!-- Restored Text Labels -->
-                                    <text x="15" y="4" fill="var(--vscode-editor-foreground)" font-size="12px" style="pointer-events: none; opacity: 0.7;">
-                                        ${truncatedMessage}
-                                    </text>
-                                    <text x="15" y="18" fill="var(--vscode-descriptionForeground)" font-size="10px" style="pointer-events: none;">
-                                        ${new Date(node.date).toLocaleDateString()}
-                                    </text>
+                                    <!-- Restored Text Labels with Multiline Support -->
+                                    <foreignObject x="15" y="-14" width="300" height="60">
+                                        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family: var(--vscode-font-family); font-size: 11px; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; word-wrap: break-word;">
+                                            <span style="color: var(--vscode-descriptionForeground); font-weight: bold;">${new Date(node.date).toLocaleDateString()}</span>
+                                            <span style="color: var(--vscode-descriptionForeground)"> : </span>
+                                            <span style="color: var(--vscode-editor-foreground)">${safeMessage}</span>
+                                        </div>
+                                    </foreignObject>
                                 </g>
                             `}).join('')}
                         </svg>
@@ -362,20 +299,9 @@ export class TimelinePanel {
                 </div>
             </div>
 
-            <!-- Full Width Modal Overlay -->
-            <div id="modal-overlay" onclick="handleOverlayClick(event)">
-                <div id="details-modal">
-                     <div class="details-header">
-                        <h2>Loading details...</h2>
-                        <button class="close-btn" onclick="closeModal()" title="Close">✕</button>
-                     </div>
-                </div>
-            </div>
-
             <script>
                 const vscode = acquireVsCodeApi();
                 const graphNodes = ${JSON.stringify(graphData.nodes)};
-                const initialDetails = ${JSON.stringify(initialDetails || null)};
 
                 // Zoom Logic
                 let currentZoom = 1;
@@ -452,13 +378,6 @@ export class TimelinePanel {
                 });
 
 
-                if (initialDetails) {
-                   setTimeout(() => {
-                        // Optional: auto-show if desired, but user interaction is better
-                        // renderCommitDetails(initialDetails); 
-                   }, 50);
-                }
-
                 function selectCommit(hash) {
                     if (isDragging) return; // Prevent click when dragging
                     
@@ -466,135 +385,14 @@ export class TimelinePanel {
                         command: 'selectCommit',
                         hash: hash
                     });
-                    
-                    showModal('Loading details...');
                 }
                 
-                function showModal(placeholderText) {
-                    const overlay = document.getElementById('modal-overlay');
-                    const modal = document.getElementById('details-modal');
-                    
-                    // Reset content to loading state if new
-                    if (placeholderText) {
-                         modal.innerHTML = '<div class="details-header"><h2>Loading...</h2><button class="close-btn" onclick="closeModal()">✕</button></div><div style="padding:40px; text-align:center; color: var(--vscode-descriptionForeground);">Fetching commit details...</div>';
-                    }
-                    
-                    overlay.classList.add('active');
-                }
-
-                function closeModal() {
-                    const overlay = document.getElementById('modal-overlay');
-                    overlay.classList.remove('active');
-                }
-
-                function handleOverlayClick(event) {
-                    if (event.target.id === 'modal-overlay') {
-                        closeModal();
-                    }
-                }
-
                 window.addEventListener('message', event => {
                     const message = event.data;
                     switch (message.command) {
-                        case 'setCommitDetails':
-                            renderCommitDetails(message.details);
-                            break;
+                        // No longer handling 'setCommitDetails' as modal is removed
                     }
                 });
-
-                function renderCommitDetails(details) {
-                    const container = document.getElementById('details-modal');
-                    if (!details) return;
-                    
-                    const overlay = document.getElementById('modal-overlay');
-                    if (!overlay.classList.contains('active')) {
-                        overlay.classList.add('active');
-                    }
-
-                    // Group files
-                    const added = [], modified = [], deleted = [];
-                    if (details.files) {
-                        details.files.forEach(f => {
-                            if (f.status === 'A') added.push(f);
-                            else if (f.status === 'D') deleted.push(f);
-                            else modified.push(f);
-                        });
-                    }
-
-                    const date = new Date(details.date).toLocaleString();
-                    
-                    let html = 
-                    '<div class="details-header">' +
-                        '<button class="close-btn" onclick="closeModal()">✕</button>' +
-                        '<h2>' + escapeHtml(details.message) + '</h2>' +
-                        '<div class="meta-row">' +
-                            '<span class="author-pill">👤 ' + escapeHtml(details.author) + '</span>' +
-                            '<span>' + date + '</span>' +
-                            '<span style="margin-left:auto; opacity:0.6">' + details.hash.substring(0,8) + '</span>' +
-                        '</div>' +
-                    '</div>' +
-                    
-                    '<div class="files-container">';
-
-                    // Helper to render a section
-                    function renderSection(title, files, typeClass, icon) {
-                        if (files.length === 0) return '';
-                        let sectionHtml = '<div class="file-section">' +
-                            '<div class="section-header ' + typeClass + '">' + 
-                                '<span>' + title + '</span>' + 
-                                '<span style="opacity:0.6">' + files.length + '</span>' + 
-                            '</div>' +
-                            '<ul class="file-list">';
-                        
-                        files.forEach(file => {
-                            sectionHtml += '<li class="file-item" onclick="openFile(\\'' + details.hash + '\\', \\'' + escapeHtml(file.path) + '\\')">' +
-                                '<span class="file-icon ' + typeClass + '" style="border:none">' + icon + '</span>' +
-                                '<span class="file-path">' + escapeHtml(file.path) + '</span>' +
-                            '</li>';
-                        });
-                        
-                        sectionHtml += '</ul></div>';
-                        return sectionHtml;
-                    }
-
-                    html += renderSection('Added Files', added, 'section-added', '✳️');
-                    html += renderSection('Modified Files', modified, 'section-modified', '✏️');
-                    html += renderSection('Deleted Files', deleted, 'section-deleted', '❌');
-
-                    if (added.length === 0 && modified.length === 0 && deleted.length === 0) {
-                        html += '<div style="padding:40px; text-align:center; opacity:0.5">No file changes found in this commit.</div>';
-                    }
-
-                    html += '</div>' +
-                    '<div class="actions-footer">' +
-                        '<button class="action-btn" onclick="browseFiles(\\'' + details.hash + '\\')">📂 Browse Commit</button>' +
-                        '<button class="action-btn" onclick="copyHash(\\'' + details.hash + '\\')" title="Copy Commit Hash">📋 Copy Hash</button>' +
-                        '<button class="action-btn secondary" onclick="checkoutCommit(\\'' + details.hash + '\\')" title="Checkout this commit (Detached HEAD)">🛑 Checkout</button>' +
-                        '<button class="action-btn danger" onclick="revertCommit(\\'' + details.hash + '\\')" title="Revert this commit">↩️ Revert</button>' +
-                    '</div>';
-
-                    container.innerHTML = html;
-                }
-
-                function openFile(hash, path) {
-                    vscode.postMessage({ command: 'openFile', hash: hash, path: path });
-                }
-
-                function browseFiles(hash) {
-                     vscode.postMessage({ command: 'browseCommit', hash: hash });
-                }
-
-                function copyHash(hash) {
-                    vscode.postMessage({ command: 'copyHash', hash: hash });
-                }
-
-                function checkoutCommit(hash) {
-                    vscode.postMessage({ command: 'checkoutCommit', hash: hash });
-                }
-
-                function revertCommit(hash) {
-                    vscode.postMessage({ command: 'revertCommit', hash: hash });
-                }
 
                 function escapeHtml(text) {
                     if (!text) return '';

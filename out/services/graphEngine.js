@@ -23,12 +23,13 @@ class GraphEngine {
         // lane index -> commit hash of the 'tip' of that lane
         const lanes = [];
         const commitMap = new Map();
+        let maxLaneIndex = 0;
         // Y position is simply the index (chronological)
         commits.forEach((commit, index) => {
             const node = {
                 ...commit,
                 x: 0,
-                y: index * 50 + 30,
+                y: index * 80 + 30,
                 lane: 0,
                 color: ''
             };
@@ -57,7 +58,7 @@ class GraphEngine {
             }
             // If no lane is waiting for this, it's a new tip (or a merge sink)
             if (assignedLane === -1) {
-                // Find empty lane
+                // Find empty lane - Simple approach for now
                 assignedLane = lanes.findIndex(l => l === null);
                 if (assignedLane === -1) {
                     assignedLane = lanes.length;
@@ -65,47 +66,54 @@ class GraphEngine {
                 }
             }
             node.lane = assignedLane;
+            if (assignedLane > maxLaneIndex)
+                maxLaneIndex = assignedLane;
             lanes[assignedLane] = null; // Occupy this lane for now
             // Propagate to parents
             // The first parent continues the lane.
             // Subsequent parents (merge) will need to find their own lanes later, 
             // but we register "expectations" here.
             if (node.parents.length > 0) {
-                // First parent takes the current lane
+                // 1. Primary Parent (First Parent)
+                // Continues the current lane.
                 const firstParent = node.parents[0];
-                if (lanes[node.lane] === null) {
-                    lanes[node.lane] = firstParent;
-                }
-                else {
-                    // Lane collision? (Merge logic can get complex)
-                    // simplified: just search for next free lane for the parent
-                    // For MVP, we might overwrite. 
-                    // Let's protect against self-overwrite if possible, but keep it simple.
-                    if (lanes[node.lane] !== firstParent) {
-                        // This lane is already expecting something else?
-                        // In a perfect world we handle this. 
-                        // For now, let's just forcefully set it, visual glitches acceptable for MVP.
-                        lanes[node.lane] = firstParent;
-                    }
-                }
-                // Other parents (merge sources)
+                lanes[assignedLane] = firstParent;
+                // 2. Secondary Parents (Merges)
+                // These need to start new lanes if they aren't already tracked.
                 for (let i = 1; i < node.parents.length; i++) {
                     const parentHash = node.parents[i];
-                    // We need to register that 'parentHash' needs a lane.
-                    // It will pick one up when we reach it.
-                    // But we should try to reserve a slot? 
-                    // Let's just Add it to a "pending" list? 
-                    // Actually, if we just set a new lane for it:
-                    let newLane = lanes.findIndex(l => l === parentHash);
-                    if (newLane === -1) {
-                        newLane = lanes.findIndex(l => l === null);
-                        if (newLane === -1) {
-                            newLane = lanes.length;
-                            lanes.push(null);
+                    // Check if this parent is already waiting in a lane
+                    if (!lanes.includes(parentHash)) {
+                        // Assign a new lane for this parent
+                        // OPTIMIZATION: Try to find a free lane CLOSE to the current one
+                        // to minimize the arrow length (Manhattan distance)
+                        let bestLane = -1;
+                        let minDist = Infinity;
+                        // Search existing lanes for a free spot
+                        for (let l = 0; l < lanes.length; l++) {
+                            if (lanes[l] === null) {
+                                const dist = Math.abs(l - assignedLane);
+                                if (dist < minDist) {
+                                    minDist = dist;
+                                    bestLane = l;
+                                }
+                            }
                         }
-                        lanes[newLane] = parentHash;
+                        if (bestLane !== -1) {
+                            lanes[bestLane] = parentHash;
+                        }
+                        else {
+                            // No free lane, append a new one
+                            lanes.push(parentHash);
+                            if (lanes.length - 1 > maxLaneIndex)
+                                maxLaneIndex = lanes.length - 1;
+                        }
                     }
                 }
+            }
+            else {
+                // Root commit (or disjoint root), frees the lane
+                lanes[assignedLane] = null;
             }
             node.x = node.lane * 30 + 30; // 30px horizontal spacing
             node.color = this.laneColors[node.lane % this.laneColors.length];
@@ -128,8 +136,8 @@ class GraphEngine {
         return {
             nodes,
             links,
-            height: nodes.length * 50 + 50,
-            width: lanes.length * 30 + 60
+            height: nodes.length * 80 + 100,
+            width: (maxLaneIndex + 1) * 50 + 400 // Dynamic width based on lanes used + space for messages
         };
     }
 }

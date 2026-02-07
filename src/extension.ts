@@ -1,10 +1,13 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { GitUtils, createGitUtils, CommitInfo } from './gitUtils';
 import { CodeParser, FunctionInfo } from './parser';
 import { DiffUtils, ChangeStats } from './diffUtils';
 import { CodeTimeMachinePanel, WebviewData } from './webview/panel';
 import { GitService } from './services/gitService';
 import { TimelinePanel } from './webview/timelinePanel';
+import { CommitDetailsPanel } from './webview/commitDetailsPanel';
+import { GitFileSystemProvider } from './services/gitFileSystemProvider';
 import { GraphEngine } from './services/graphEngine';
 import { ScopeResolver } from './services/scopeResolver';
 
@@ -17,6 +20,12 @@ interface LegacyState {
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('GitRewind extension is now active!');
+
+  // Register FileSystem Provider for binary support (images etc)
+  const fsProvider = new GitFileSystemProvider(async (path) => {
+    return await GitService.create(path);
+  });
+  context.subscriptions.push(vscode.workspace.registerFileSystemProvider(GitFileSystemProvider.scheme, fsProvider, { isCaseSensitive: true, isReadonly: true }));
 
   // --- Main Command: Show Repository Graph ---
   // Always opens the Repo Timeline, independent of active file selection (as requested).
@@ -83,20 +92,45 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  let openFileDisposable = vscode.commands.registerCommand('codeTimeMachine.openFileAtCommit', async (hash: string, filePath: string) => {
+  let openFileDisposable = vscode.commands.registerCommand('codeTimeMachine.openFileAtCommit', async (hash: string, filePath: string, status: string = 'M') => {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-    if (!workspaceRoot) return;
-    const gitService = await GitService.create(workspaceRoot);
-    if (!gitService) return;
+    if (!workspaceRoot) return; // Should ideally find root from file path too
 
     try {
-      const content = await gitService.getFileAtCommit(filePath, hash);
-      const ext = filePath.split('.').pop() || 'txt';
-      const doc = await vscode.workspace.openTextDocument({
-        content: content,
-        language: ext === 'ts' ? 'typescript' : ext === 'js' ? 'javascript' : ext
-      });
-      await vscode.window.showTextDocument(doc, { preview: true });
+      // Helper to create URI
+      const makeUri = (commitHash: string, path: string) => {
+        // Ensure path starts with /
+        const safePath = path.startsWith('/') ? path : '/' + path;
+        return vscode.Uri.from({
+          scheme: GitFileSystemProvider.scheme,
+          authority: commitHash,
+          path: safePath,
+          query: workspaceRoot
+        });
+      };
+
+      if (status === 'D') {
+        // Deleted: Open Parent Version (Read Only)
+        // We need parent hash. Simplest is hash~1.
+        const parentHash = `${hash}~1`;
+        const uri = makeUri(parentHash, filePath);
+        await vscode.commands.executeCommand('vscode.open', uri, { preview: true });
+      }
+      else if (status === 'M') {
+        // Modified: Open Diff (Parent vs Current)
+        const parentHash = `${hash}~1`;
+        const leftUri = makeUri(parentHash, filePath);
+        const rightUri = makeUri(hash, filePath);
+        const title = `${path.basename(filePath)} (${hash.substring(0, 7)})`;
+
+        await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+      }
+      else {
+        // Added or other: Just open the file at this commit
+        const uri = makeUri(hash, filePath);
+        await vscode.commands.executeCommand('vscode.open', uri, { preview: true });
+      }
+
     } catch (e) {
       vscode.window.showErrorMessage(`Failed to open file: ${e}`);
     }
@@ -213,7 +247,65 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  context.subscriptions.push(disposable, detailsDisposable, browseDisposable, openFileDisposable, revertDisposable, checkoutDisposable, copyHashDisposable, navigateDisposable, selectFileDisposable);
+  // Compare File Command
+  let compareFileDisposable = vscode.commands.registerCommand('codeTimeMachine.compareFile', async (hash: string) => {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+    if (!workspaceRoot) return;
+    const gitService = await GitService.create(workspaceRoot);
+    if (!gitService) return;
+
+    try {
+      // Step 1: Select File
+      const changedFiles = await gitService.getChangedFiles(hash);
+      const fileItems = changedFiles.map(f => ({ label: f.path, description: f.status }));
+
+      const selectedFile = await vscode.window.showQuickPick(fileItems, {
+        placeHolder: 'Select a file to compare'
+      });
+
+      if (!selectedFile) return;
+
+      // Step 2: Select Commit to Compare Against
+      // We'll show the last 50 commits to pick from
+      const commits = await gitService.getCommitGraph(50);
+      const commitItems = commits.map(c => ({
+        label: c.message,
+        description: c.hash.substring(0, 7),
+        detail: c.date,
+        hash: c.hash
+      }));
+
+      const selectedCommit = await vscode.window.showQuickPick(commitItems, {
+        placeHolder: `Compare ${path.basename(selectedFile.label)} with version in...`
+      });
+
+      if (!selectedCommit) return;
+
+      // Step 3: Open Diff
+      // URI: gitrewind-remote://<hash>/path
+      const leftUri = vscode.Uri.from({
+        scheme: GitFileSystemProvider.scheme,
+        authority: selectedCommit.hash,
+        path: '/' + selectedFile.label,
+        query: workspaceRoot
+      });
+      const rightUri = vscode.Uri.from({
+        scheme: GitFileSystemProvider.scheme,
+        authority: hash,
+        path: '/' + selectedFile.label,
+        query: workspaceRoot
+      });
+
+      const title = `${path.basename(selectedFile.label)}: ${selectedCommit.description} ↔ ${hash.substring(0, 7)}`;
+
+      await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
+
+    } catch (e) {
+      vscode.window.showErrorMessage(`Comparison failed: ${e}`);
+    }
+  });
+
+  context.subscriptions.push(disposable, detailsDisposable, browseDisposable, openFileDisposable, revertDisposable, checkoutDisposable, copyHashDisposable, navigateDisposable, selectFileDisposable, compareFileDisposable);
 }
 
 // --- Helper Functions ---
@@ -312,7 +404,7 @@ async function showRepoTimeline(context: vscode.ExtensionContext, targetPath: st
       }
     }
 
-    TimelinePanel.createOrShow(context.extensionUri, graphData, initialDetails);
+    TimelinePanel.createOrShow(context.extensionUri, graphData);
   });
 }
 
@@ -333,12 +425,9 @@ async function showCommitDetails(context: vscode.ExtensionContext, hash: string)
       return;
     }
 
-    if (TimelinePanel.currentPanel) {
-      TimelinePanel.currentPanel.postMessage({
-        command: 'setCommitDetails',
-        details: details
-      });
-    }
+    // Open detailed view in a new panel (new tab)
+    CommitDetailsPanel.createOrShow(context.extensionUri, details);
+
   } catch (e) {
     vscode.window.showErrorMessage("Error loading details: " + e);
   }

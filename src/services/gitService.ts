@@ -176,6 +176,36 @@ export class GitService {
     }
 
     /**
+     * Get the content of a file as a Buffer (for binary support).
+     */
+    async getFileBufferAtCommit(filePath: string, commitHash: string): Promise<Buffer | null> {
+        try {
+            let relativePath = filePath;
+            if (path.isAbsolute(filePath)) {
+                relativePath = path.relative(this.workspaceRoot, filePath);
+            }
+            const normalizedPath = relativePath.split(path.sep).join('/');
+
+            // simple-git .binary() or .show() with buffer encoding?
+            // simple-git .show() returns string by default.
+            // We can use .raw() with 'show' but capturing binary output via stdout might be tricky with encoding.
+            // Using 'git cat-file -p' might be better but 'git show' is standard.
+            // simple-git has a .binaryCatFile but that's for cat-file.
+
+            // best way with simple-git to get buffer is using .catFile(['-p', ...]) or similar, 
+            // but simple-git's high level APIs often return strings.
+            // Let's use the 'cat-file' command which is robust for binary.
+            // Actually 'git show' is fine if we can get buffer.
+
+            // simple-git v3+ supports binary:
+            return await this.git.binaryCatFile(['-p', `${commitHash}:${normalizedPath}`]);
+        } catch (error) {
+            console.error(`Error fetching binary file ${filePath} at ${commitHash}:`, error);
+            return null;
+        }
+    }
+
+    /**
      * Get raw diff between two commits for a file.
      */
     async getDiff(filePath: string, hashA: string, hashB: string): Promise<string> {
@@ -267,13 +297,33 @@ export class GitService {
         try {
             // Get header info
             const separator = '::::';
-            const format = `%H${separator}%P${separator}%an${separator}%ae${separator}%ad${separator}%B${separator}%at`; // %B for full body
+            const format = `%H${separator}%P${separator}%an${separator}%ae${separator}%ad${separator}%B${separator}%D${separator}%at`; // %D for refs
             const logResult = await this.git.show([hash, `--format=${format}`, '--no-patch']);
 
-            const [fullHash, parents, author, email, date, message, timestamp] = logResult.trim().split(separator);
+            const [fullHash, parents, author, email, date, message, refs, timestamp] = logResult.trim().split(separator);
 
             // Get file stats
             const files = await this.getChangedFiles(hash);
+
+            // Try to find the branch name if refs are empty or just HEAD
+            let branchName = refs;
+            if (!branchName || branchName.includes('HEAD')) {
+                try {
+                    // name-rev finds symbolic names for any commit
+                    // --name-only: no hash in output
+                    // --no-undefined: error if not found (suppressed by try/catch)
+                    // --always: fallback to short hash (we don't want this, so careful)
+                    // refs/heads/* to prefer local branches
+                    const nameRev = await this.git.raw(['name-rev', '--name-only', '--refs=refs/heads/*', hash]);
+                    if (nameRev && !nameRev.includes('undefined')) {
+                        // Output might be "main~5" or "feature/x~2"
+                        // We want just "main" or "feature/x"
+                        branchName = nameRev.trim().replace(/[~^]\d+$/, '');
+                    }
+                } catch (e) {
+                    // Ignore, just use what we have
+                }
+            }
 
             return {
                 hash: fullHash,
@@ -282,6 +332,7 @@ export class GitService {
                 email: email,
                 date: date,
                 message: message ? message.trim() : '',
+                branch: branchName || refs, // Use the better name if found
                 timestamp: parseInt(timestamp, 10),
                 files: files
             };
