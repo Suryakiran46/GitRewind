@@ -33,7 +33,7 @@ class TimelinePanel {
             TimelinePanel.currentPanel.update(graphData);
             return;
         }
-        const panel = vscode.window.createWebviewPanel(TimelinePanel.viewType, 'Git Time Machine', column, {
+        const panel = vscode.window.createWebviewPanel(TimelinePanel.viewType, 'GitRewind', column, {
             enableScripts: true,
             localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'src', 'webview')]
         });
@@ -274,8 +274,49 @@ class TimelinePanel {
             const sy = sourceNode.y;
             const tx = targetNode.x;
             const ty = targetNode.y;
-            const midY = (sy + ty) / 2;
-            const d = `M ${sx} ${sy} C ${sx} ${midY}, ${tx} ${midY}, ${tx} ${ty}`;
+            // Determine crossover point:
+            // - If primary parent (index 0): specific crossover preference (usually at bottom to show branching *from*)
+            // - If secondary parent (merge): crossover at top (show merging *into*)
+            const isPrimary = sourceNode.parents[0] === targetNode.hash;
+            // Layout Tuning
+            const spacing = 50; // Vertical spacing (match GraphEngine)
+            const radius = 10;
+            const verticalGap = ty - sy; // Always positive (Time flows down)
+            // Calculate midY based on heuristic
+            // If primary: crossover close to Target (ty)
+            // If secondary: crossover close to Source (sy)
+            let midY = (sy + ty) / 2; // Default
+            if (verticalGap > spacing * 1.5) {
+                if (isPrimary) {
+                    midY = ty - 25; // Crossover just before target
+                }
+                else {
+                    midY = sy + 25; // Crossover just after source
+                }
+            }
+            let d = '';
+            // If strictly vertical
+            if (Math.abs(sx - tx) < 1) {
+                d = `M ${sx} ${sy} L ${tx} ${ty}`;
+            }
+            else {
+                // Determine turn radius (clamp to available space)
+                const r = Math.min(radius, Math.abs(tx - sx) / 2, Math.abs(midY - sy), Math.abs(ty - midY));
+                const dir = tx > sx ? 1 : -1;
+                // Strict Orthogonal Path (Vertical -> Turn -> Horizontal -> Turn -> Vertical)
+                // We ensure exact coordinates for the lines and explicit rounding
+                // 1. Vertical from Source
+                d = `M ${sx} ${sy} ` +
+                    `L ${sx} ${midY - r} ` +
+                    // 2. Turn to Horizontal
+                    `Q ${sx} ${midY} ${sx + dir * r} ${midY} ` +
+                    // 3. Horizontal Line
+                    `L ${tx - dir * r} ${midY} ` +
+                    // 4. Turn to Vertical
+                    `Q ${tx} ${midY} ${tx} ${midY + r} ` +
+                    // 5. Vertical to Target
+                    `L ${tx} ${ty}`;
+            }
             return `<path d="${d}" class="branch-line" stroke="${sourceNode.color}" />`;
         }).join('')}
                             

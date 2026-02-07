@@ -16,7 +16,7 @@ interface LegacyState {
 }
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Code Time Machine extension is now active!');
+  console.log('GitRewind extension is now active!');
 
   // --- Main Command: Show Repository Graph ---
   // Always opens the Repo Timeline, independent of active file selection (as requested).
@@ -36,7 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
 
     if (!targetPath) {
-      vscode.window.showErrorMessage("Please open a Git repository folder to use Code Time Machine.");
+      vscode.window.showErrorMessage("Please open a Git repository folder to use GitRewind.");
       return;
     }
 

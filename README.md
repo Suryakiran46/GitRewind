@@ -1,22 +1,22 @@
-# 🕰️ Code Time Machine
+# 🕰️ GitRewind
 
 A VS Code extension that lets you view how functions and code blocks evolved across Git commits with beautiful side-by-side diffs.
 
 ### Extension in Action
-![Code Time Machine Demo](./images/example1.png)
+![GitRewind Demo](./images/example1.png)
 
-![Code Time Machine Demo](./images/example2.png)
+![GitRewind Demo](./images/example2.png)
 
 ### Installation
-https://marketplace.visualstudio.com/items?itemName=vineer.code-time-machine
+https://marketplace.visualstudio.com/items?itemName=vineer.GitRewind
 
 ## 🚀 Quick Start
 
 1. **Install the Extension**
 2. **Open a file** in a Git repository
 3. **Select a function or code block** you want to analyze
-4. **Right-click** and choose "Code Time Machine: Show History"
-   - Or use Command Palette: `Ctrl+Shift+P` → "Code Time Machine: Show History"
+4. **Right-click** and choose "GitRewind: Show History"
+   - Or use Command Palette: `Ctrl+Shift+P` → "GitRewind: Show History"
 
 ## ✨ Features
 
@@ -38,7 +38,7 @@ https://marketplace.visualstudio.com/items?itemName=vineer.code-time-machine
 
 ```bash
 # Clone or navigate to the extension directory
-cd code-time-machine
+cd GitRewind
 
 # Install dependencies
 npm install
@@ -54,7 +54,7 @@ code .
 
 1. Press F5 or click on Run > Start Debugging to open a new Extension Development Host window.
 2. Open a Git repository with JavaScript/TypeScript files
-3. Select a function and test the "Code Time Machine: Show History" command
+3. Select a function and test the "GitRewind: Show History" command
 
 ## 🎯 Supported Languages
 
@@ -73,7 +73,7 @@ code .
 ## 📁 Project Structure
 
 ```
-code-time-machine/
+git-rewind/
 ├── src/
 │   ├── extension.ts       # Main extension logic
 │   ├── gitUtils.ts        # Git operations wrapper

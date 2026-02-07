@@ -41,7 +41,7 @@ export class CodeTimeMachinePanel {
         // Otherwise, create a new panel.
         const panel = vscode.window.createWebviewPanel(
             CodeTimeMachinePanel.viewType,
-            'Code Time Machine',
+            'GitRewind',
             column || vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -165,7 +165,7 @@ export class CodeTimeMachinePanel {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
-    <title>Code Time Machine</title>
+    <title>GitRewind</title>
     <style>
         :root {
             --border-color: var(--vscode-panel-border);

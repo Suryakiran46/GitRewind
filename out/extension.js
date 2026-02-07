@@ -32,7 +32,7 @@ const gitService_1 = require("./services/gitService");
 const timelinePanel_1 = require("./webview/timelinePanel");
 const graphEngine_1 = require("./services/graphEngine");
 function activate(context) {
-    console.log('Code Time Machine extension is now active!');
+    console.log('GitRewind extension is now active!');
     // --- Main Command: Show Repository Graph ---
     // Always opens the Repo Timeline, independent of active file selection (as requested).
     let disposable = vscode.commands.registerCommand('codeTimeMachine.showHistory', async () => {
@@ -50,7 +50,7 @@ function activate(context) {
             }
         }
         if (!targetPath) {
-            vscode.window.showErrorMessage("Please open a Git repository folder to use Code Time Machine.");
+            vscode.window.showErrorMessage("Please open a Git repository folder to use GitRewind.");
             return;
         }
         // Always show the Repo Timeline
