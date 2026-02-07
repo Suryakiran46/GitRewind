@@ -26,53 +26,38 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.GitService = void 0;
 const simple_git_1 = require("simple-git");
 const path = __importStar(require("path"));
+const fs = __importStar(require("fs"));
 class GitService {
     constructor(workspaceRoot) {
         this.workspaceRoot = workspaceRoot;
         this.git = (0, simple_git_1.simpleGit)(workspaceRoot);
     }
     /**
-     * static factory to initialize with a file path, finding the repo root.
+     * Static factory to initialize with a file or directory path.
+     * Automatically resolves to the Git repository root.
      */
     static async create(startPath) {
         try {
-            // If startPath is a file, use its directory. If it's a directory, use it directly.
-            // However, to be safe, we can try both or relies on simple-git's resolution.
-            // Simple-git init expects a directory. 
             let targetDir = startPath;
-            // Basic check if it looks like a file (has extension), though not perfect.
-            // Better to rely on VS Code's knowledge if possible, but here we just have a string.
-            // Let's assume if it has an extension it's a file, or we can try to stat it if we imported fs.
-            // For now, let's just use the logic: "git rev-parse --show-toplevel" works from within a subdir too.
-            // If startPath is "C:\Projects\Repo\file.ts", dirname is "C:\Projects\Repo".
-            // If startPath is "C:\Projects\Repo", dirname is "C:\Projects". This is BAD if we are at root.
-            // FIX: We should attempt to use startPath directly if it is a directory. 
-            // Since we can't easily check if it's a file vs dir without fs, let's use a try-catch approach
-            // or just assume simple-git handles it if we pass the right thing.
-            // Actually, we can use 'path.parse' or just try to initialize simple-git on startPath.
-            // If startPath is a file, simple-git(startPath) might fail or work depending on implementation.
-            // SAFEST APPROACH:
-            // 1. Try to initialize in startPath.
-            // 2. Check isRepo.
-            // 3. If that fails, try dirname(startPath).
-            let git = (0, simple_git_1.simpleGit)(startPath);
-            let isRepo = false;
-            try {
-                isRepo = await git.checkIsRepo();
-            }
-            catch (e) {
-                // simple-git might throw if startPath is a file
-            }
-            if (!isRepo) {
-                // Try parent dir (assuming startPath was a file)
-                const parent = path.dirname(startPath);
-                if (parent !== startPath) {
-                    git = (0, simple_git_1.simpleGit)(parent);
-                    isRepo = await git.checkIsRepo();
+            // Check if startPath is a file (has .* extension) and get its directory if so
+            if (fs.existsSync(startPath)) {
+                const stat = fs.statSync(startPath);
+                if (stat.isFile()) {
+                    targetDir = path.dirname(startPath);
                 }
             }
-            if (!isRepo)
+            else {
+                // Path doesn't exist, assume it might be a file and try parent dir
+                targetDir = path.dirname(startPath);
+            }
+            // Initialize git in the resolved directory
+            const git = (0, simple_git_1.simpleGit)(targetDir);
+            // Verify it's actually a git repository
+            const isRepo = await git.checkIsRepo();
+            if (!isRepo) {
                 return null;
+            }
+            // Get the actual repository root
             const root = await git.revparse(['--show-toplevel']);
             return new GitService(root.trim());
         }
@@ -90,8 +75,8 @@ class GitService {
      */
     async getCommitGraph(limit = 50) {
         try {
-            // Use a custom separator for parsing. '::::' is unlikely to appear in commit messages.
-            const separator = '::::';
+            // Use a custom separator for parsing. '|:|:|:' is very unlikely to appear in commit messages.
+            const separator = '|:|:|:';
             // %H: hash, %P: parent hashes, %an: author, %ae: email, %ad: date, %s: message, %D: refs/branches, %at: timestamp
             const format = `%H${separator}%P${separator}%an${separator}%ae${separator}%ad${separator}%s${separator}%D${separator}%at`;
             // Use .raw to bypass simple-git's option parsing which was causing "unrecognized argument: --format" errors
@@ -100,25 +85,45 @@ class GitService {
                 `--max-count=${limit}`,
                 `--format=${format}`
             ]);
-            return result.split('\n')
+            if (!result || result.trim().length === 0) {
+                console.warn('No commits found in repository');
+                return [];
+            }
+            const nodes = result.split('\n')
                 .filter(line => line.trim().length > 0)
-                .map(line => {
+                .map((line, index) => {
                 const parts = line.split(separator);
-                if (parts.length < 8)
-                    return null; // Skip malformed lines
-                const [hash, parents, author, email, date, message, refs, timestamp] = parts;
+                // Should have exactly 8 parts: hash, parents, author, email, date, message, refs, timestamp
+                if (parts.length < 8) {
+                    console.warn(`Skipping malformed commit line ${index}:`, line);
+                    return null;
+                }
+                const hash = parts[0];
+                const parents = parts[1];
+                const author = parts[2];
+                const email = parts[3];
+                const date = parts[4];
+                const message = parts[5];
+                const refs = parts[6];
+                const timestamp = parts[7];
+                if (!hash) {
+                    console.warn(`Skipping commit with no hash at line ${index}`);
+                    return null;
+                }
                 return {
                     hash: hash,
                     parents: parents ? parents.split(' ').filter(p => p.length > 0) : [],
-                    author: author,
-                    email: email,
-                    date: date,
-                    message: message,
+                    author: author || 'Unknown',
+                    email: email || '',
+                    date: date || '',
+                    message: message || '',
                     branch: this.parseBranchName(refs),
-                    timestamp: parseInt(timestamp, 10)
+                    timestamp: parseInt(timestamp, 10) || 0
                 };
             })
                 .filter(node => node !== null);
+            console.log(`Loaded ${nodes.length} commits from repository`);
+            return nodes;
         }
         catch (error) {
             console.error('Error fetching commit graph:', error);
@@ -272,21 +277,36 @@ class GitService {
      */
     async getCommitDetails(hash) {
         try {
-            // Get header info
-            const separator = '::::';
+            // Get header info with a unique separator that won't appear in messages
+            const separator = '|:|:|:';
             const format = `%H${separator}%P${separator}%an${separator}%ae${separator}%ad${separator}%B${separator}%at`; // %B for full body
             const logResult = await this.git.show([hash, `--format=${format}`, '--no-patch']);
-            const [fullHash, parents, author, email, date, message, timestamp] = logResult.trim().split(separator);
+            if (!logResult || logResult.trim().length === 0) {
+                console.warn(`No output from git show for hash ${hash}`);
+                return null;
+            }
+            const parts = logResult.trim().split(separator);
+            if (parts.length < 7) {
+                console.warn(`Malformed git show output for hash ${hash}`, parts);
+                return null;
+            }
+            const fullHash = parts[0];
+            const parents = parts[1];
+            const author = parts[2];
+            const email = parts[3];
+            const date = parts[4];
+            const message = parts[5];
+            const timestamp = parts[6];
             // Get file stats
             const files = await this.getChangedFiles(hash);
             return {
                 hash: fullHash,
-                parents: parents ? parents.split(' ') : [],
-                author: author,
-                email: email,
-                date: date,
+                parents: parents ? parents.split(' ').filter(p => p.length > 0) : [],
+                author: author || 'Unknown',
+                email: email || '',
+                date: date || '',
                 message: message ? message.trim() : '',
-                timestamp: parseInt(timestamp, 10),
+                timestamp: parseInt(timestamp, 10) || 0,
                 files: files
             };
         }

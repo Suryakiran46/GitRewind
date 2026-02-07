@@ -1,5 +1,5 @@
 {
-  "name": "GitRewind",
+  "name": "gitrewind",
   "displayName": "GitRewind",
   "description": "🕰️ Visualize how your code evolved through Git history with beautiful side-by-side diffs and change navigation",
   "version": "0.0.6",
@@ -7,7 +7,7 @@
     "vscode": "^1.74.0"
   },
   "activationEvents": [
-    "onCommand:codeTimeMachine.showHistory"
+    "onCommand:GitRewind.showHistory"
   ],
   "categories": [
     "Other"
@@ -19,29 +19,29 @@
     "version-control",
     "code-evolution"
   ],
-  "publisher": "vineer",
+  "publisher": "CodeToDeath",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nagavineerpasam/git-rewind.git"
+    "url": "https://github.com/Suryakiran46/GitRewind.git"
   },
   "icon": "images/icon.png",
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "codeTimeMachine.showHistory",
+        "command": "GitRewind.showHistory",
         "title": "GitRewind: Show Repository Graph"
       },
       {
-        "command": "codeTimeMachine.cleanup",
+        "command": "GitRewind.cleanup",
         "title": "GitRewind: Cleanup Temporary Files"
       }
     ],
     "menus": {
       "commandPalette": [
         {
-          "command": "codeTimeMachine.showHistory",
+          "command": "GitRewind.showHistory",
           "when": "workspaceFolderCount > 0"
         }
       ]

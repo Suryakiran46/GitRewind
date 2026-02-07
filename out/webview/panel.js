@@ -23,27 +23,27 @@ var __importStar = (this && this.__importStar) || function (mod) {
     return result;
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CodeTimeMachinePanel = void 0;
+exports.GitRewindPanel = void 0;
 const vscode = __importStar(require("vscode"));
-class CodeTimeMachinePanel {
+class GitRewindPanel {
     static createOrShow(extensionUri, data) {
         const column = vscode.window.activeTextEditor
             ? vscode.ViewColumn.Beside
             : undefined;
         // If we already have a panel, show it.
-        if (CodeTimeMachinePanel.currentPanel) {
-            CodeTimeMachinePanel.currentPanel.panel.reveal(column);
-            CodeTimeMachinePanel.currentPanel.updateContent(data);
+        if (GitRewindPanel.currentPanel) {
+            GitRewindPanel.currentPanel.panel.reveal(column);
+            GitRewindPanel.currentPanel.updateContent(data);
             return;
         }
         // Otherwise, create a new panel.
-        const panel = vscode.window.createWebviewPanel(CodeTimeMachinePanel.viewType, 'GitRewind', column || vscode.ViewColumn.One, {
+        const panel = vscode.window.createWebviewPanel(GitRewindPanel.viewType, 'GitRewind', column || vscode.ViewColumn.One, {
             enableScripts: true,
             localResourceRoots: [
                 vscode.Uri.joinPath(extensionUri, 'src', 'webview')
             ]
         });
-        CodeTimeMachinePanel.currentPanel = new CodeTimeMachinePanel(panel, extensionUri, data);
+        GitRewindPanel.currentPanel = new GitRewindPanel(panel, extensionUri, data);
     }
     constructor(panel, extensionUri, data) {
         this.disposables = [];
@@ -79,16 +79,16 @@ class CodeTimeMachinePanel {
     }
     handleNavigateToCommit(commitIndex, hash) {
         // Emit an event that the extension can listen to
-        vscode.commands.executeCommand('codeTimeMachine.navigateToCommit', hash);
+        vscode.commands.executeCommand('GitRewind.navigateToCommit', hash);
     }
     handleSelectFile(filePath, status, hash) {
-        vscode.commands.executeCommand('codeTimeMachine.selectFile', hash, filePath, status);
+        vscode.commands.executeCommand('GitRewind.selectFile', hash, filePath, status);
     }
     handleShowCommitDetails(commit) {
         vscode.window.showInformationMessage(`Commit: ${commit.hash.substring(0, 8)}\nAuthor: ${commit.author}\nDate: ${commit.date}\nMessage: ${commit.message}`, { modal: false });
     }
     handleOpenCurrentFile() {
-        vscode.commands.executeCommand('codeTimeMachine.openCurrentFile');
+        vscode.commands.executeCommand('GitRewind.openCurrentFile');
     }
     handleCopyCommitHash(hash) {
         vscode.env.clipboard.writeText(hash).then(() => {
@@ -107,7 +107,7 @@ class CodeTimeMachinePanel {
         this.panel.webview.html = this.getWebviewContent(data);
     }
     dispose() {
-        CodeTimeMachinePanel.currentPanel = undefined;
+        GitRewindPanel.currentPanel = undefined;
         // Clean up our resources
         this.panel.dispose();
         while (this.disposables.length) {
@@ -552,6 +552,6 @@ class CodeTimeMachinePanel {
 </html>`;
     }
 }
-exports.CodeTimeMachinePanel = CodeTimeMachinePanel;
-CodeTimeMachinePanel.viewType = 'codeTimeMachine';
+exports.GitRewindPanel = GitRewindPanel;
+GitRewindPanel.viewType = 'GitRewind';
 //# sourceMappingURL=panel.js.map

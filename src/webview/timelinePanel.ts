@@ -18,6 +18,13 @@ export class TimelinePanel {
             return;
         }
 
+        console.log('Creating new TimelinePanel with graphData:', {
+            nodesCount: graphData.nodes.length,
+            linksCount: graphData.links.length,
+            height: graphData.height,
+            width: graphData.width
+        });
+
         const panel = vscode.window.createWebviewPanel(
             TimelinePanel.viewType,
             'GitRewind',
@@ -41,24 +48,22 @@ export class TimelinePanel {
             message => {
                 switch (message.command) {
                     case 'selectCommit':
-                        // vscode.window.showInformationMessage(`Selected commit: ${message.hash}`);
-                        // Trigger logic to show details or checkout snapshot
-                        vscode.commands.executeCommand('codeTimeMachine.showCommitDetails', message.hash);
+                        vscode.commands.executeCommand('GitRewind.showCommitDetails', message.hash);
                         return;
                     case 'browseCommit':
-                        vscode.commands.executeCommand('codeTimeMachine.browseCommit', message.hash);
+                        vscode.commands.executeCommand('GitRewind.browseCommit', message.hash);
                         return;
                     case 'openFile':
-                        vscode.commands.executeCommand('codeTimeMachine.openFileAtCommit', message.hash, message.path);
+                        vscode.commands.executeCommand('GitRewind.openFileAtCommit', message.hash, message.path);
                         return;
                     case 'copyHash':
-                        vscode.commands.executeCommand('codeTimeMachine.copyHash', message.hash);
+                        vscode.commands.executeCommand('GitRewind.copyHash', message.hash);
                         return;
                     case 'checkoutCommit':
-                        vscode.commands.executeCommand('codeTimeMachine.checkoutCommit', message.hash);
+                        vscode.commands.executeCommand('GitRewind.checkoutCommit', message.hash);
                         return;
                     case 'revertCommit':
-                        vscode.commands.executeCommand('codeTimeMachine.revertCommit', message.hash);
+                        vscode.commands.executeCommand('GitRewind.revertCommit', message.hash);
                         return;
                 }
             },
