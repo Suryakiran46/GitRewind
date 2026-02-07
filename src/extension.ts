@@ -18,7 +18,7 @@ export function activate(context: vscode.ExtensionContext) {
   });
   context.subscriptions.push(vscode.workspace.registerFileSystemProvider(GitFileSystemProvider.scheme, fsProvider, { isCaseSensitive: true, isReadonly: true }));
 
-  // --- Main Command: Show Repository Graph ---
+  // --- Main Command: Show Repository Graph ---np
   // Always opens the Repo Timeline, independent of active file selection (as requested).
   let disposable = vscode.commands.registerCommand('GitRewind.showHistory', async () => {
     // We prioritize the workspace root, as this is a repo-level view.
