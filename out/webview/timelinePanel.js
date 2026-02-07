@@ -1,107 +1,105 @@
-import * as vscode from 'vscode';
-import { GraphData, GraphNode } from '../services/graphEngine';
-
-export class TimelinePanel {
-    public static currentPanel: TimelinePanel | undefined;
-    public static readonly viewType = 'gitTimeMachine.timeline';
-
-    private readonly panel: vscode.WebviewPanel;
-    private readonly extensionUri: vscode.Uri;
-    private disposables: vscode.Disposable[] = [];
-
-    public static createOrShow(extensionUri: vscode.Uri, graphData: GraphData) {
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.TimelinePanel = void 0;
+const vscode = __importStar(require("vscode"));
+class TimelinePanel {
+    static createOrShow(extensionUri, graphData) {
         const column = vscode.ViewColumn.One;
-
         if (TimelinePanel.currentPanel) {
             TimelinePanel.currentPanel.panel.reveal(column);
             TimelinePanel.currentPanel.update(graphData);
             return;
         }
-
-        const panel = vscode.window.createWebviewPanel(
-            TimelinePanel.viewType,
-            'GitRewind',
-            column,
-            {
-                enableScripts: true,
-                localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'src', 'webview')]
-            }
-        );
-
+        const panel = vscode.window.createWebviewPanel(TimelinePanel.viewType, 'GitRewind', column, {
+            enableScripts: true,
+            localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'src', 'webview')]
+        });
         TimelinePanel.currentPanel = new TimelinePanel(panel, extensionUri, graphData);
     }
-
-    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, graphData: GraphData) {
+    constructor(panel, extensionUri, graphData) {
+        this.disposables = [];
         this.panel = panel;
         this.extensionUri = extensionUri;
-
         this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
-
-        this.panel.webview.onDidReceiveMessage(
-            message => {
-                switch (message.command) {
-                    case 'selectCommit':
-                        // vscode.window.showInformationMessage(`Selected commit: ${message.hash}`);
-                        // Trigger logic to show details or checkout snapshot
-                        vscode.commands.executeCommand('GitRewind.showCommitDetails', message.hash);
-                        return;
-                    case 'browseCommit':
-                        vscode.commands.executeCommand('GitRewind.browseCommit', message.hash);
-                        return;
-                    case 'openFile':
-                        vscode.commands.executeCommand('GitRewind.openFileAtCommit', message.hash, message.path);
-                        return;
-                    case 'copyHash':
-                        vscode.commands.executeCommand('GitRewind.copyHash', message.hash);
-                        return;
-                    case 'checkoutCommit':
-                        vscode.commands.executeCommand('GitRewind.checkoutCommit', message.hash);
-                        return;
-                    case 'revertCommit':
-                        vscode.commands.executeCommand('GitRewind.revertCommit', message.hash);
-                        return;
-                    case 'commitSelectedForComparison':
-                        vscode.commands.executeCommand('codeTimeMachine.compareWithSelectedCommit', message.hash);
-                        return;
-                    case 'loadMoreCommits':
-                        vscode.commands.executeCommand('codeTimeMachine.loadMoreCommits');
-                        return;
-                }
-            },
-            null,
-            this.disposables
-        );
-
+        this.panel.webview.onDidReceiveMessage(message => {
+            switch (message.command) {
+                case 'selectCommit':
+                    // vscode.window.showInformationMessage(`Selected commit: ${message.hash}`);
+                    // Trigger logic to show details or checkout snapshot
+                    vscode.commands.executeCommand('codeTimeMachine.showCommitDetails', message.hash);
+                    return;
+                case 'browseCommit':
+                    vscode.commands.executeCommand('codeTimeMachine.browseCommit', message.hash);
+                    return;
+                case 'openFile':
+                    vscode.commands.executeCommand('codeTimeMachine.openFileAtCommit', message.hash, message.path);
+                    return;
+                case 'copyHash':
+                    vscode.commands.executeCommand('codeTimeMachine.copyHash', message.hash);
+                    return;
+                case 'checkoutCommit':
+                    vscode.commands.executeCommand('codeTimeMachine.checkoutCommit', message.hash);
+                    return;
+                case 'revertCommit':
+                    vscode.commands.executeCommand('codeTimeMachine.revertCommit', message.hash);
+                    return;
+                case 'commitSelectedForComparison':
+                    vscode.commands.executeCommand('codeTimeMachine.compareWithSelectedCommit', message.hash);
+                    return;
+                case 'loadMoreCommits':
+                    vscode.commands.executeCommand('codeTimeMachine.loadMoreCommits');
+                    return;
+            }
+        }, null, this.disposables);
         this.update(graphData);
     }
-
-    public update(graphData: GraphData) {
+    update(graphData) {
         this.panel.webview.html = this.getHtmlForWebview(graphData);
     }
-
-    public postMessage(message: any) {
+    postMessage(message) {
         this.panel.webview.postMessage(message);
     }
-
-    public setSelectMode(active: boolean, message?: string) {
+    setSelectMode(active, message) {
         this.postMessage({ command: 'setSelectMode', active, message });
     }
-
-    public dispose() {
+    dispose() {
         TimelinePanel.currentPanel = undefined;
         this.panel.dispose();
         while (this.disposables.length) {
             const x = this.disposables.pop();
-            if (x) x.dispose();
+            if (x)
+                x.dispose();
         }
     }
-
-    private escapeHtml(text: string): string {
-        if (!text) return '';
+    escapeHtml(text) {
+        if (!text)
+            return '';
         return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
     }
-
-    private getHtmlForWebview(graphData: GraphData): string {
+    getHtmlForWebview(graphData) {
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -284,8 +282,8 @@ export class TimelinePanel {
                             ${graphData.links.map(link => {
             const sourceNode = graphData.nodes.find(n => n.hash === link.source);
             const targetNode = graphData.nodes.find(n => n.hash === link.target);
-            if (!sourceNode || !targetNode) return '';
-
+            if (!sourceNode || !targetNode)
+                return '';
             const sx = sourceNode.x;
             const sy = sourceNode.y;
             const tx = targetNode.x;
@@ -294,38 +292,34 @@ export class TimelinePanel {
             // - If primary parent (index 0): specific crossover preference (usually at bottom to show branching *from*)
             // - If secondary parent (merge): crossover at top (show merging *into*)
             const isPrimary = sourceNode.parents[0] === targetNode.hash;
-
             // Layout Tuning
             const spacing = 80; // Vertical spacing (match GraphEngine)
             const radius = 10;
             const verticalGap = ty - sy; // Always positive (Time flows down)
-
             // Calculate midY based on heuristic
             // If primary: crossover close to Target (ty)
             // If secondary: crossover close to Source (sy)
             let midY = (sy + ty) / 2; // Default
-
             if (verticalGap > spacing * 1.5) {
                 if (isPrimary) {
                     midY = ty - 25; // Crossover just before target
-                } else {
+                }
+                else {
                     midY = sy + 25; // Crossover just after source
                 }
             }
-
             let d = '';
             // If strictly vertical
             if (Math.abs(sx - tx) < 1) {
                 d = `M ${sx} ${sy} L ${tx} ${ty}`;
-            } else {
+            }
+            else {
                 // Determine turn radius (clamp to available space)
                 const r = Math.min(radius, Math.abs(tx - sx) / 2, Math.abs(midY - sy), Math.abs(ty - midY));
                 const dir = tx > sx ? 1 : -1;
-
                 // Strict Orthogonal Path (Parent -> Child)
                 // We draw from Target (Parent/Bottom) to Source (Child/Top)
                 // so the marker-end arrow points to the Child.
-
                 // 1. Vertical from Parent (Bottom)
                 d = `M ${tx} ${ty} ` +
                     `L ${tx} ${midY + r} ` +
@@ -338,17 +332,13 @@ export class TimelinePanel {
                     // 5. Vertical to Child (Top)
                     `L ${sx} ${sy}`;
             }
-
             // Only show arrow for non-vertical connections (merges/branches) or long jumps
             // Use marker-end to point to the target node
             // The marker ID is based on the source color: marker-arrow-[color-hex]
             // We need to sanitize the color string to make a valid ID
             const colorId = sourceNode.color.replace('#', '');
             const markerAttr = (Math.abs(sx - tx) > 1) ? `marker-end="url(#arrow-${colorId})"` : '';
-
             return `<path d="${d}" class="branch-line" stroke="${sourceNode.color}" stroke-width="2" fill="none" ${markerAttr} />`;
-
-
         }).join('')}
                             
                             <!-- Nodes -->
@@ -360,14 +350,12 @@ export class TimelinePanel {
                 iconId = `icon-${node.type}`;
             }
             // Fallback
-            if (iconId === 'icon-undefined') iconId = 'icon-normal';
-
+            if (iconId === 'icon-undefined')
+                iconId = 'icon-normal';
             const fillColor = node.color;
             const initials = (node.author || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-
             // Safe text handling for restoration
             const safeMessage = node.message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-
             return `
                                 <g class="node-group" onclick="selectCommit('${node.hash}')" transform="translate(${node.x}, ${node.y})">
                                     <!-- Avatar (Left of Node) -->
@@ -393,7 +381,8 @@ export class TimelinePanel {
                                         </div>
                                     </foreignObject>
                                 </g>
-                            `}).join('')}
+                            `;
+        }).join('')}
                         </svg>
                     </div>
                     <div style="text-align: center; padding: 20px; min-height: 50px;">
@@ -530,3 +519,6 @@ export class TimelinePanel {
         </html>`;
     }
 }
+exports.TimelinePanel = TimelinePanel;
+TimelinePanel.viewType = 'gitTimeMachine.timeline';
+//# sourceMappingURL=timelinePanel.js.map

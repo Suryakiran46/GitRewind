@@ -1,88 +1,86 @@
-
-import * as vscode from 'vscode';
-
-export class CommitDetailsPanel {
-    public static currentPanel: CommitDetailsPanel | undefined;
-    public static readonly viewType = 'gitTimeMachine.commitDetails';
-
-    private readonly panel: vscode.WebviewPanel;
-    private readonly extensionUri: vscode.Uri;
-    private disposables: vscode.Disposable[] = [];
-
-    public static createOrShow(extensionUri: vscode.Uri, details: any) {
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.CommitDetailsPanel = void 0;
+const vscode = __importStar(require("vscode"));
+class CommitDetailsPanel {
+    static createOrShow(extensionUri, details) {
         const column = vscode.ViewColumn.Active;
-
         // If we already have a panel, show it.
         if (CommitDetailsPanel.currentPanel) {
             CommitDetailsPanel.currentPanel.panel.reveal(column);
             CommitDetailsPanel.currentPanel.update(details);
             return;
         }
-
         // Otherwise, create a new panel.
-        const panel = vscode.window.createWebviewPanel(
-            CommitDetailsPanel.viewType,
-            `Commit ${details.hash.substring(0, 7)}`,
-            column,
-            {
-                enableScripts: true,
-                localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'src', 'webview')]
-            }
-        );
-
+        const panel = vscode.window.createWebviewPanel(CommitDetailsPanel.viewType, `Commit ${details.hash.substring(0, 7)}`, column, {
+            enableScripts: true,
+            localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'src', 'webview')]
+        });
         CommitDetailsPanel.currentPanel = new CommitDetailsPanel(panel, extensionUri, details);
     }
-
-    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, details: any) {
+    constructor(panel, extensionUri, details) {
+        this.disposables = [];
         this.panel = panel;
         this.extensionUri = extensionUri;
-
         // Set the webview's initial html content
         this.update(details);
-
         // Listen for when the panel is disposed
         // This happens when the user closes the panel or when the panel is closed programmatically
         this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
-
         // Handle messages from the webview
-        this.panel.webview.onDidReceiveMessage(
-            message => {
-                switch (message.command) {
-                    case 'browseCommit':
-                        vscode.commands.executeCommand('GitRewind.browseCommit', message.hash);
-                        return;
-                    case 'openFile':
-                        vscode.commands.executeCommand('GitRewind.openFileAtCommit', message.hash, message.path);
-                        return;
-                    case 'copyHash':
-                        vscode.commands.executeCommand('codeTimeMachine.copyHash', message.hash);
-                        return;
-                    case 'compareFile':
-                        vscode.commands.executeCommand('codeTimeMachine.compareFile', message.hash, message.path);
-                        return;
-                    case 'checkoutCommit':
-                        vscode.commands.executeCommand('GitRewind.checkoutCommit', message.hash);
-                        return;
-                    case 'revertCommit':
-                        vscode.commands.executeCommand('GitRewind.revertCommit', message.hash);
-                        return;
-                }
-            },
-            null,
-            this.disposables
-        );
+        this.panel.webview.onDidReceiveMessage(message => {
+            switch (message.command) {
+                case 'browseCommit':
+                    vscode.commands.executeCommand('codeTimeMachine.browseCommit', message.hash);
+                    return;
+                case 'openFile':
+                    vscode.commands.executeCommand('codeTimeMachine.openFileAtCommit', message.hash, message.path);
+                    return;
+                case 'copyHash':
+                    vscode.commands.executeCommand('codeTimeMachine.copyHash', message.hash);
+                    return;
+                case 'compareFile':
+                    vscode.commands.executeCommand('codeTimeMachine.compareFile', message.hash, message.path);
+                    return;
+                case 'checkoutCommit':
+                    vscode.commands.executeCommand('codeTimeMachine.checkoutCommit', message.hash);
+                    return;
+                case 'revertCommit':
+                    vscode.commands.executeCommand('codeTimeMachine.revertCommit', message.hash);
+                    return;
+            }
+        }, null, this.disposables);
     }
-
-    public update(details: any) {
+    update(details) {
         this.panel.title = `Commit ${details.hash.substring(0, 7)}`;
         this.panel.webview.html = this.getHtmlForWebview(details);
     }
-
-    public dispose() {
+    dispose() {
         CommitDetailsPanel.currentPanel = undefined;
-
         this.panel.dispose();
-
         while (this.disposables.length) {
             const x = this.disposables.pop();
             if (x) {
@@ -90,52 +88,51 @@ export class CommitDetailsPanel {
             }
         }
     }
-
-    private getHtmlForWebview(details: any): string {
+    getHtmlForWebview(details) {
         const date = new Date(details.date).toLocaleString(undefined, {
             weekday: 'short', year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
         });
-
         // Parse refs
         let branchBadge = '';
         if (details.branch) {
-            const updates = details.branch.split(',').map((ref: string) => ref.trim());
-            updates.forEach((ref: string) => {
+            const updates = details.branch.split(',').map((ref) => ref.trim());
+            updates.forEach((ref) => {
                 let cleanRef = ref;
                 let type = 'branch';
                 if (cleanRef.startsWith('HEAD ->')) {
                     cleanRef = cleanRef.replace('HEAD ->', '').trim();
                     type = 'head';
-                } else if (cleanRef.startsWith('origin/')) {
+                }
+                else if (cleanRef.startsWith('origin/')) {
                     cleanRef = cleanRef.replace('origin/', '');
                     type = 'remote';
-                } else if (cleanRef.startsWith('tag:')) {
+                }
+                else if (cleanRef.startsWith('tag:')) {
                     cleanRef = cleanRef.replace('tag:', '').trim();
                     type = 'tag';
                 }
-
                 const colorClass = type === 'head' ? 'added' : (type === 'tag' ? 'modified' : 'branch-badge');
                 // For tags use blue (modified), for HEAD use green (added), for others use gray
                 // We can define custom classes but reusing existing ones is fine for now
                 // or just inline style
                 let badgeStyle = '';
-                if (type === 'head') badgeStyle = 'background: var(--vscode-gitDecoration-addedResourceForeground); color: var(--vscode-editor-background);';
-                else if (type === 'tag') badgeStyle = 'background: var(--vscode-gitDecoration-modifiedResourceForeground); color: var(--vscode-editor-background);';
-                else badgeStyle = 'background: var(--vscode-badge-background); color: var(--vscode-badge-foreground);';
-
+                if (type === 'head')
+                    badgeStyle = 'background: var(--vscode-gitDecoration-addedResourceForeground); color: var(--vscode-editor-background);';
+                else if (type === 'tag')
+                    badgeStyle = 'background: var(--vscode-gitDecoration-modifiedResourceForeground); color: var(--vscode-editor-background);';
+                else
+                    badgeStyle = 'background: var(--vscode-badge-background); color: var(--vscode-badge-foreground);';
                 const tooltip = type === 'head' ? 'Current Head' : (type === 'tag' ? 'Tag' : 'Branch');
                 // Use explicit label as requested
                 const label = type === 'head' ? 'HEAD' : (type === 'tag' ? 'Tag: ' + cleanRef : 'Branch: ' + cleanRef);
                 branchBadge += `<span class="pill" style="${badgeStyle}" title="${tooltip}: ${cleanRef}"> ${label}</span>`;
             });
         }
-
         // Parse Merge Info
         let mergeInfo = '';
         if (details.parents.length > 1) {
             const branchMergeMatch = details.message.match(/Merge branch '([^']+)'(?: into '([^']+)')?/);
             const prMergeMatch = details.message.match(/Merge pull request #(\d+) from ([^\s]+)/);
-
             if (branchMergeMatch) {
                 const source = branchMergeMatch[1];
                 const target = branchMergeMatch[2] || 'current branch';
@@ -145,7 +142,8 @@ export class CommitDetailsPanel {
                     <span>into</span> 
                     <strong>${target}</strong>
                  </div>`;
-            } else if (prMergeMatch) {
+            }
+            else if (prMergeMatch) {
                 const prNumber = prMergeMatch[1];
                 const source = prMergeMatch[2];
                 mergeInfo = `<div class="merge-info" style="margin-top:8px; font-size:0.9em; opacity:0.8; display:flex; align-items:center; gap:6px;">
@@ -153,30 +151,21 @@ export class CommitDetailsPanel {
                     <span>from</span>
                     <strong>${source}</strong>
                  </div>`;
-            } else {
+            }
+            else {
                 mergeInfo = `<div class="merge-info" style="margin-top:8px; font-size:0.9em; opacity:0.8;">🔀 Merge Commit</div>`;
             }
         }
-
-        // Tree Construction (Same logic, cleaner implementation)
-        interface TreeNode {
-            name: string;
-            path: string;
-            type: 'file' | 'folder';
-            status?: string;
-            children?: { [key: string]: TreeNode };
-        }
-
-        const root: TreeNode = { name: 'root', path: '', type: 'folder', children: {} };
-
+        const root = { name: 'root', path: '', type: 'folder', children: {} };
         if (details.files) {
-            details.files.forEach((f: any) => {
+            details.files.forEach((f) => {
                 const parts = f.path.split('/');
                 let current = root;
-                parts.forEach((part: string, index: number) => {
+                parts.forEach((part, index) => {
                     const isFile = index === parts.length - 1;
                     const fullPath = parts.slice(0, index + 1).join('/');
-                    if (!current.children) current.children = {};
+                    if (!current.children)
+                        current.children = {};
                     if (!current.children[part]) {
                         current.children[part] = {
                             name: part,
@@ -190,29 +179,26 @@ export class CommitDetailsPanel {
                 });
             });
         }
-
-        function renderTree(node: TreeNode, depth: number = 0): string {
+        function renderTree(node, depth = 0) {
             const indent = depth * 20;
             if (node.type === 'file') {
                 const statusClass = node.status === 'A' ? 'added' : node.status === 'D' ? 'deleted' : 'modified';
                 const statusIcon = node.status === 'A' ? '✳️' : node.status === 'D' ? '❌' : '✏️';
                 // Using VS Code codified icons via simple text/emoji for now, keeping it robust
                 const fileIcon = '📄';
-
                 const safePath = node.path.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-
                 return `<li class="file-item ${statusClass}" onclick="openFile('${details.hash}', '${safePath}', '${node.status}')" style="padding-left: ${indent + 20}px">
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${node.name}</span>
                     <span class="status-badge ${statusClass}">${statusIcon} ${node.status === 'A' ? 'Added' : node.status === 'D' ? 'Deleted' : 'Modified'}</span>
                     <button class="action-btn file-action-btn" title="Compare with another commit" onclick="event.stopPropagation(); compareFile('${details.hash}', '${safePath}')">⚖️</button>
                 </li>`;
-            } else {
+            }
+            else {
                 const childrenHtml = Object.values(node.children || {})
                     .sort((a, b) => (a.type !== b.type ? (a.type === 'folder' ? -1 : 1) : a.name.localeCompare(b.name)))
                     .map(child => renderTree(child, depth + 1))
                     .join('');
-
                 return `<li class="folder-item">
                     <div class="folder-header" onclick="toggleFolder(this)" style="padding-left: ${indent}px">
                          <span class="toggle-icon">▼</span>
@@ -223,15 +209,12 @@ export class CommitDetailsPanel {
                 </li>`;
             }
         }
-
         const treeHtml = Object.values(root.children || {})
             .sort((a, b) => (a.type !== b.type ? (a.type === 'folder' ? -1 : 1) : a.name.localeCompare(b.name)))
             .map(child => renderTree(child))
             .join('');
-
         const safeMessage = details.message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
         const safeAuthor = details.author.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
         return `<!DOCTYPE html>
         <html lang="en">
         <head>
@@ -570,3 +553,6 @@ export class CommitDetailsPanel {
         </html>`;
     }
 }
+exports.CommitDetailsPanel = CommitDetailsPanel;
+CommitDetailsPanel.viewType = 'gitTimeMachine.commitDetails';
+//# sourceMappingURL=commitDetailsPanel.js.map
