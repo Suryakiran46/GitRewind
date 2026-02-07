@@ -318,7 +318,7 @@ async function showFileHistory(context: vscode.ExtensionContext, editor: vscode.
 
   if (!targetPath) return;
 
-  const gitUtils = await createGitUtils(filePath);
+  const gitUtils = await GitService.create(filePath);
   if (!gitUtils) {
     vscode.window.showErrorMessage("Git repository not found.");
     return;
@@ -350,7 +350,7 @@ async function showFileHistory(context: vscode.ExtensionContext, editor: vscode.
       }
 
       // 3. Open Panel
-      CodeTimeMachinePanel.createOrShow(context.extensionUri, {
+      GitRewindPanel.createOrShow(context.extensionUri, {
         commits: commits, // Pass the flat list of commits
         currentCommitIndex: 0,
         functionName: '',
