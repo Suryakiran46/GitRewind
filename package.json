@@ -9,16 +9,38 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:repoRewindTimeline",
+    "onCommand:repoRewind.itemClicked",
+    "onCommand:repoRewind.openGraph"
+]
+,
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
+    {
+      "command": "repoRewind.openGraph",
+      "title": "RepoRewind: Open Git Timeline Graph"
+    }
+  ],
+  "viewsContainers": {
+    "activitybar": [
       {
-        "command": "GitRewind.helloWorld",
-        "title": "Hello World"
+        "id": "repoRewind",
+        "title": "RepoRewind",
+        "icon": "media/icon.svg"
       }
     ]
   },
+  "views": {
+    "repoRewind": [
+      {
+        "id": "repoRewindTimeline",
+        "name": "Commit Timeline"
+      }
+    ]
+  }
+},
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",

@@ -1,26 +1,102 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
-import * as vscode from 'vscode';
+import * as vscode from "vscode";
+import { TimelineProvider } from "./sidebar";
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "GitRewind" is now active!');
+    const timelineProvider = new TimelineProvider();
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('GitRewind.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from GitRewind!');
-	});
+    vscode.window.registerTreeDataProvider(
+        "repoRewindTimeline",
+        timelineProvider
+    );
 
-	context.subscriptions.push(disposable);
+    const clickCommand = vscode.commands.registerCommand(
+        "repoRewind.itemClicked",
+        (label: string) => {
+            vscode.window.showInformationMessage(
+                `You clicked: ${label}`
+            );
+        }
+    );
+
+    const openGraphCommand = vscode.commands.registerCommand(
+    "repoRewind.openGraph",
+    (label?: string) => {
+
+        const panel = vscode.window.createWebviewPanel(
+            "repoRewindGraph",
+            "Git Timeline Graph",
+            vscode.ViewColumn.One,
+            { enableScripts: true }
+        );
+
+        panel.webview.onDidReceiveMessage(message => {
+            if (message.type === "commitClicked") {
+                vscode.window.showInformationMessage(
+                    `Commit clicked: ${message.hash}`
+                );
+            }
+        });
+
+        panel.webview.html = getGraphHtml(label ?? "All Commits");
+    }
+);
+
+
+    context.subscriptions.push(clickCommand, openGraphCommand);
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}
+
+function getGraphHtml(title: string): string {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8" />
+        <style>
+            body {
+                background: #1e1e1e;
+                color: #ddd;
+                font-family: sans-serif;
+            }
+
+            .commit {
+                fill: #4CAF50;
+                cursor: pointer;
+            }
+
+            .commit:hover {
+                stroke: white;
+                stroke-width: 2;
+            }
+        </style>
+    </head>
+    <body>
+        <h2>${title}</h2>
+
+        <svg width="500" height="300">
+            <circle class="commit" cx="100" cy="60" r="6" data-hash="a1b2c3"/>
+            <circle class="commit" cx="100" cy="120" r="6" data-hash="d4e5f6"/>
+            <circle class="commit" cx="100" cy="180" r="6" data-hash="g7h8i9"/>
+        </svg>
+
+        <script>
+            const vscode = acquireVsCodeApi();
+
+            document.querySelectorAll(".commit").forEach(circle => {
+                circle.addEventListener("click", () => {
+                    const hash = circle.getAttribute("data-hash");
+
+                    vscode.postMessage({
+                        type: "commitClicked",
+                        hash: hash
+                    });
+                });
+            });
+        </script>
+    </body>
+    </html>
+    `;
+}
+
