@@ -1,62 +1,70 @@
 {
-  "name": "GitRewind",
-  "displayName": "GitRewind",
-  "description": "Visual Git history time machine for VS Code",
-  "version": "0.0.1",
+  "name": "code-time-machine",
+  "displayName": "Code Time Machine",
+  "description": "🕰️ Visualize how your code evolved through Git history with beautiful side-by-side diffs and change navigation",
+  "version": "0.0.4",
   "engines": {
-    "vscode": "^1.109.0"
+    "vscode": "^1.74.0"
   },
+  "activationEvents": [
+    "onCommand:codeTimeMachine.showHistory"
+  ],
   "categories": [
     "Other"
   ],
-  "activationEvents": [
-    "onView:repoRewindTimeline",
-    "onCommand:repoRewind.itemClicked",
-    "onCommand:repoRewind.openGraph"
-]
-,
+  "keywords": [
+    "git",
+    "history",
+    "diff",
+    "version-control",
+    "code-evolution"
+  ],
+  "publisher": "vineer",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nagavineerpasam/code-time-machine.git"
+  },
+  "icon": "images/icon.png",
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
-    {
-      "command": "repoRewind.openGraph",
-      "title": "RepoRewind: Open Git Timeline Graph"
+      {
+        "command": "codeTimeMachine.showHistory",
+        "title": "Code Time Machine: Show Repository Graph"
+      },
+      {
+        "command": "codeTimeMachine.cleanup",
+        "title": "Code Time Machine: Cleanup Temporary Files"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "codeTimeMachine.showHistory",
+          "when": "workspaceFolderCount > 0"
+        }
+      ]
     }
-  ],
-  "viewsContainers": {
-    "activitybar": [
-      {
-        "id": "repoRewind",
-        "title": "RepoRewind",
-        "icon": "media/icon.svg"
-      }
-    ]
   },
-  "views": {
-    "repoRewind": [
-      {
-        "id": "repoRewindTimeline",
-        "name": "Commit Timeline"
-      }
-    ]
-  }
-},
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
-    "pretest": "npm run compile && npm run lint",
-    "lint": "eslint src",
-    "test": "vscode-test"
+    "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
-    "@types/vscode": "^1.109.0",
-    "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
-    "typescript-eslint": "^8.54.0",
-    "eslint": "^9.39.2",
-    "typescript": "^5.9.3",
-    "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@types/babel__traverse": "^7.28.0",
+    "@types/diff": "^7.0.2",
+    "@types/node": "16.x",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.22.16",
+    "@babel/traverse": "^7.22.15",
+    "@babel/types": "^7.22.15",
+    "diff": "^5.1.0",
+    "highlight.js": "^11.8.0",
+    "simple-git": "^3.19.1"
   }
 }

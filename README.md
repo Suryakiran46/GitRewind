@@ -1,71 +1,105 @@
-# GitRewind README
+# 🕰️ Code Time Machine
 
-This is the README for your extension "GitRewind". After writing up a brief description, we recommend including the following sections.
+A VS Code extension that lets you view how functions and code blocks evolved across Git commits with beautiful side-by-side diffs.
 
-## Features
+### Extension in Action
+![Code Time Machine Demo](./images/example1.png)
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+![Code Time Machine Demo](./images/example2.png)
 
-For example if there is an image subfolder under your extension project workspace:
+### Installation
+https://marketplace.visualstudio.com/items?itemName=vineer.code-time-machine
 
-\!\[feature X\]\(images/feature-x.png\)
+## 🚀 Quick Start
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+1. **Install the Extension**
+2. **Open a file** in a Git repository
+3. **Select a function or code block** you want to analyze
+4. **Right-click** and choose "Code Time Machine: Show History"
+   - Or use Command Palette: `Ctrl+Shift+P` → "Code Time Machine: Show History"
 
-## Requirements
+## ✨ Features
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+- **Function Evolution Tracking**: Select any function or code block and see how it changed over time
+- **Smart Code Parsing**: Uses Babel/TypeScript AST parsing to accurately identify functions across commits
+- **Side-by-Side Diff View**: Beautiful webview with syntax highlighting and inline change markers
+- **Git Integration**: Works with any Git repository - fetches commit history automatically
+- **Timeline Navigation**: Browse through commits with Previous/Next buttons or click directly on the timeline
+- **Similarity Analysis**: Shows percentage similarity between versions
+- **Context Menu Integration**: Right-click on selected code to access the time machine
 
-## Extension Settings
+## 📋 Requirements
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+- VS Code 1.60.0 or higher
+- Git repository (the file must be tracked by Git)
+- Node.js and npm (for development)
 
-For example:
+## 🔧 Development Setup
 
-This extension contributes the following settings:
+```bash
+# Clone or navigate to the extension directory
+cd code-time-machine
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+# Install dependencies
+npm install
 
-## Known Issues
+# Compile TypeScript
+npm run compile
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+# Open in VS Code for development
+code .
+```
 
-## Release Notes
+### Testing the Extension
 
-Users appreciate release notes as you update your extension.
+1. Press F5 or click on Run > Start Debugging to open a new Extension Development Host window.
+2. Open a Git repository with JavaScript/TypeScript files
+3. Select a function and test the "Code Time Machine: Show History" command
 
-### 1.0.0
+## 🎯 Supported Languages
 
-Initial release of ...
+- **JavaScript** (.js, .jsx)
+- **TypeScript** (.ts, .tsx)
+- **Fallback Regex Parsing** for other languages
 
-### 1.0.1
+## 🖥️ How It Works
 
-Fixed issue #.
+1. **Code Selection**: When you select code, the extension identifies the containing function using AST parsing
+2. **Git History**: Fetches the last 10 commits that modified the current file
+3. **Historical Analysis**: For each commit, retrieves the file content and extracts the same function
+4. **Diff Generation**: Creates side-by-side diffs showing exactly what changed
+5. **Interactive Timeline**: Navigate through commits to see the evolution step-by-step
 
-### 1.1.0
+## 📁 Project Structure
 
-Added features X, Y, and Z.
+```
+code-time-machine/
+├── src/
+│   ├── extension.ts       # Main extension logic
+│   ├── gitUtils.ts        # Git operations wrapper
+│   ├── parser.ts          # Code parsing with Babel/TypeScript
+│   ├── diffUtils.ts       # Diff generation and formatting
+│   └── webview/
+│       └── panel.ts       # Webview UI for displaying diffs
+├── package.json           # Extension manifest
+├── tsconfig.json         # TypeScript configuration
+└── README.md             # This file
+```
+
+## 🐛 Known Issues
+
+- Large files (>1000 lines) may take longer to parse
+- Binary files are not supported
+- Renamed functions across commits might not be tracked perfectly
+
+
+## 🙏 Acknowledgments
+
+- Built with [VS Code Extension API](https://code.visualstudio.com/api)
+- Uses [simple-git](https://github.com/steveukx/git-js) for Git operations
+- AST parsing powered by [Babel](https://babeljs.io/)
+- Diff generation using [diff](https://github.com/kpdecker/jsdiff)
 
 ---
 
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+**Happy time traveling through your code! 🚀**
