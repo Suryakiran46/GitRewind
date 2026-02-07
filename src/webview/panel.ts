@@ -33,9 +33,14 @@ export class GitRewindPanel {
 
         // If we already have a panel, show it.
         if (GitRewindPanel.currentPanel) {
-            GitRewindPanel.currentPanel.panel.reveal(column);
-            GitRewindPanel.currentPanel.updateContent(data);
-            return;
+            try {
+                GitRewindPanel.currentPanel.panel.reveal(column);
+                GitRewindPanel.currentPanel.updateContent(data);
+                return;
+            } catch (e) {
+                // Panel was disposed, clear the reference
+                GitRewindPanel.currentPanel = undefined;
+            }
         }
 
         // Otherwise, create a new panel.

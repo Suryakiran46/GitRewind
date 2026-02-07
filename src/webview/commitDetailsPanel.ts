@@ -14,9 +14,14 @@ export class CommitDetailsPanel {
 
         // If we already have a panel, show it.
         if (CommitDetailsPanel.currentPanel) {
-            CommitDetailsPanel.currentPanel.panel.reveal(column);
-            CommitDetailsPanel.currentPanel.update(details);
-            return;
+            try {
+                CommitDetailsPanel.currentPanel.panel.reveal(column);
+                CommitDetailsPanel.currentPanel.update(details);
+                return;
+            } catch (e) {
+                // Panel was disposed, clear the reference
+                CommitDetailsPanel.currentPanel = undefined;
+            }
         }
 
         // Otherwise, create a new panel.

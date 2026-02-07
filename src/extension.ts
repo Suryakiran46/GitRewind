@@ -9,6 +9,126 @@ import { GitFileSystemProvider } from './services/gitFileSystemProvider';
 import { GraphEngine } from './services/graphEngine';
 import { DiffUtils } from './diffUtils';
 
+// Sidebar View Provider for GitRewind Graph
+class GitRewindGraphViewProvider implements vscode.WebviewViewProvider {
+  public static readonly viewType = 'gitrewind-graph-view';
+
+  private view?: vscode.WebviewView;
+  private extensionUri: vscode.Uri;
+  private disposables: vscode.Disposable[] = [];
+
+  constructor(extensionUri: vscode.Uri) {
+    this.extensionUri = extensionUri;
+  }
+
+  public resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken
+  ) {
+    this.view = webviewView;
+
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [vscode.Uri.joinPath(this.extensionUri, 'src', 'webview')]
+    };
+
+    this.setupMessageHandler();
+    this.updateHtml();
+
+    // Handle visibility changes - reinitialize when view becomes visible
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible) {
+        this.setupMessageHandler();
+        this.updateHtml();
+      }
+    });
+  }
+
+  private setupMessageHandler() {
+    if (!this.view) return;
+    
+    this.view.webview.onDidReceiveMessage((message) => {
+      if (message.command === 'openGraph') {
+        vscode.commands.executeCommand('GitRewind.showHistory');
+      }
+    });
+  }
+
+  private updateHtml() {
+    if (this.view) {
+      this.view.webview.html = this.getHtmlForWebview();
+    }
+  }
+
+  private getHtmlForWebview(): string {
+    return `<!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>GitRewind Graph</title>
+        <style>
+          body {
+            padding: 20px;
+            font-family: var(--vscode-font-family);
+            color: var(--vscode-foreground);
+            background-color: var(--vscode-editor-background);
+          }
+          .container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            min-height: 200px;
+          }
+          h2 {
+            margin: 0;
+            text-align: center;
+            font-size: 16px;
+          }
+          button {
+            background-color: var(--vscode-button-background);
+            color: var(--vscode-button-foreground);
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+          }
+          button:hover {
+            background-color: var(--vscode-button-hoverBackground);
+          }
+          button:active {
+            background-color: var(--vscode-button-background);
+          }
+          p {
+            text-align: center;
+            font-size: 13px;
+            color: var(--vscode-descriptionForeground);
+            margin: 0;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2>🕰️ GitRewind</h2>
+          <p>View your repository's Git history</p>
+          <button onclick="openGraph()">Open Repository Graph</button>
+        </div>
+        <script>
+          const vscode = acquireVsCodeApi();
+          function openGraph() {
+            vscode.postMessage({ command: 'openGraph' });
+          }
+        </script>
+      </body>
+      </html>`;
+  }
+}
+
 export function activate(context: vscode.ExtensionContext) {
   console.log('GitRewind extension is now active!');
 
@@ -20,6 +140,16 @@ export function activate(context: vscode.ExtensionContext) {
     return await GitService.create(path);
   });
   context.subscriptions.push(vscode.workspace.registerFileSystemProvider(GitFileSystemProvider.scheme, fsProvider, { isCaseSensitive: true, isReadonly: true }));
+
+  // Register sidebar view provider for GitRewind Graph
+  const graphViewProvider = new GitRewindGraphViewProvider(context.extensionUri);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      GitRewindGraphViewProvider.viewType,
+      graphViewProvider,
+      { webviewOptions: { retainContextWhenHidden: true } }
+    )
+  );
 
   // --- Pagination State ---
   let currentRepoPath = '';

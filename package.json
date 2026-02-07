@@ -7,7 +7,8 @@
     "vscode": "^1.74.0"
   },
   "activationEvents": [
-    "onCommand:GitRewind.showHistory"
+    "onCommand:GitRewind.showHistory",
+    "onView:gitrewind-graph-view"
   ],
   "categories": [
     "Other"
@@ -28,6 +29,24 @@
   "icon": "images/icon.png",
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gitrewind-explorer",
+          "title": "GitRewind",
+          "icon": "$(history)"
+        }
+      ]
+    },
+    "views": {
+      "gitrewind-explorer": [
+        {
+          "id": "gitrewind-graph-view",
+          "name": "Repository Graph",
+          "type": "webview"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "GitRewind.showHistory",

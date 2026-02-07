@@ -13,9 +13,14 @@ export class TimelinePanel {
         const column = vscode.ViewColumn.One;
 
         if (TimelinePanel.currentPanel) {
-            TimelinePanel.currentPanel.panel.reveal(column);
-            TimelinePanel.currentPanel.update(graphData);
-            return;
+            try {
+                TimelinePanel.currentPanel.panel.reveal(column);
+                TimelinePanel.currentPanel.update(graphData);
+                return;
+            } catch (e) {
+                // Panel was disposed, clear the reference
+                TimelinePanel.currentPanel = undefined;
+            }
         }
 
         const panel = vscode.window.createWebviewPanel(
