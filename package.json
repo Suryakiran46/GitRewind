@@ -1,0 +1,75 @@
+{
+  "name": "code-time-machine",
+  "displayName": "Code Time Machine",
+  "description": "🕰️ Visualize how your code evolved through Git history with beautiful side-by-side diffs and change navigation",
+  "version": "0.0.4",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "activationEvents": [
+    "onCommand:codeTimeMachine.showHistory"
+  ],
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "git",
+    "history",
+    "diff",
+    "version-control",
+    "code-evolution"
+  ],
+  "publisher": "vineer",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nagavineerpasam/code-time-machine.git"
+  },
+  "icon": "images/icon.png",
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "codeTimeMachine.showHistory",
+        "title": "Code Time Machine: Show History"
+      },
+      {
+        "command": "codeTimeMachine.showRepoHistory",
+        "title": "Code Time Machine: Show Repository Timeline"
+      },
+      {
+        "command": "codeTimeMachine.cleanup",
+        "title": "Code Time Machine: Cleanup Temporary Files"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "codeTimeMachine.showHistory",
+          "when": "editorHasSelection",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/babel__traverse": "^7.28.0",
+    "@types/diff": "^7.0.2",
+    "@types/node": "16.x",
+    "@types/vscode": "^1.74.0",
+    "typescript": "^4.9.4"
+  },
+  "dependencies": {
+    "@babel/parser": "^7.22.16",
+    "@babel/traverse": "^7.22.15",
+    "@babel/types": "^7.22.15",
+    "diff": "^5.1.0",
+    "highlight.js": "^11.8.0",
+    "simple-git": "^3.19.1"
+  }
+}
