@@ -112,15 +112,15 @@ export class TimelinePanel {
         <head>
             <meta charset="UTF-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Git Timeline</title>
+            <title>Git Timeline (Colors Updated)</title>
             <style>
                 :root {
-                    --git-merge: #6f42c1;
+                    --git-merge: #ff9800;
                     --git-clean: #2ea043;
                     --git-warning: #d29922;
                     --git-danger: #cf222e;
                     --git-added: #2ea043;
-                    --git-modified: #0969da;
+                    --git-modified: #a371f7;
                     --git-deleted: #cf222e;
                 }
                 body {
@@ -239,50 +239,72 @@ export class TimelinePanel {
                                     `;
         }).join('')}
                                 <!-- Icons Definitions: All paths assume 0 0 24 24 viewBox -->
-                                <!-- 1. Initial Commit: Flag/Start -->
-                                <g id="icon-initial">
-                                    <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z" fill="currentColor" />
+ 
+                                <!-- 1. Bug: Bug Icon -->
+                                <!-- 1. Bug: Bug Icon -->
+                                <g id="icon-bug">
+                                    <path d="M20 8h-2.81c-.45-.78-1.07-1.45-1.82-1.96L17 4.41 15.59 3l-2.17 2.17C12.96 5.06 12.49 5 12 5c-.49 0-.96.06-1.41.17L8.41 3 7 4.41l1.62 1.63C7.88 6.55 7.26 7.22 6.81 8H4v2h2.09c-.05.33-.09.66-.09 1v1H4v2h2v1c0 .34.04.67.09 1H4v2h2.81c1.04 1.79 2.97 3 5.19 3s4.15-1.21 5.19-3H20v-2h-2.09c.05-.33.09-.66.09-1v-1h2v-2h-2v-1c0-.34-.04-.67-.09-1H20V8zm-6 12h-4v-2h4v2zm0-4h-4v-2h4v2z"/>
                                 </g>
 
-                                <!-- 2. Merge: Merge generic arrow -->
-                                <g id="icon-merge">
-                                    <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.15c-.05.21-.08.43-.08.66 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92z" fill="currentColor"/>
-                                </g>
-
-                                <!-- 3. Bug Fix: Bug -->
-                                <g id="icon-fix">
-                                    <path d="M19 8h-1.81a5.985 5.985 0 0 0-1.82-1.96l.93-.93a.996.996 0 1 0-1.41-1.41l-1.47 1.47C12.96 5.06 12.49 5 12 5s-.96.06-1.41.17L9.11 3.7a.996.996 0 1 0-1.41 1.41l.93.93C7.5 6.41 6.8 7.11 6.32 8H4.5a.5.5 0 0 0-.5.5v1.67a1.5 1.5 0 0 0 .1.53l1.8 4.2C6.46 17.18 8.86 19 12 19s5.54-1.82 6.1-4.1l1.8-4.2a1.5 1.5 0 0 0 .1-.53V8.5a.5.5 0 0 0-.5-.5zM8.5 10.5C8.5 9.67 9.17 9 10 9s1.5.67 1.5 1.5S10.83 12 10 12s-1.5-.67-1.5-1.5zm5 1.5c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5z" fill="currentColor"/>
-                                </g>
-
-                                <!-- 4. Add: File Plus -->
+                                <!-- 2. Add: File Add Icon -->
+                                <!-- 2. Add: File Add Icon -->
                                 <g id="icon-add">
-                                    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 14h-3v3h-2v-3H8v-2h3v-3h2v3h3v2zm-3-7V3.5L18.5 9H13z" fill="currentColor"/>
-                                </g>
-                                <g id="icon-feat">
-                                    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 14h-3v3h-2v-3H8v-2h3v-3h2v3h3v2zm-3-7V3.5L18.5 9H13z" fill="currentColor"/>
+                                    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 14h-3v3h-2v-3H8v-2h3v-3h2v3h3v2zm-3-7V3.5L18.5 9H13z"/>
                                 </g>
 
-                                <!-- 5. Tag: Tag -->
-                                <g id="icon-tag">
-                                    <path d="M21.41 11.58l-9-9C12.05 2.22 11.55 2 11 2H4c-1.1 0-2 .9-2 2v7c0 .55.22 1.05.59 1.42l9 9c.36.36.86.58 1.41.58.55 0 1.05-.22 1.41-.59l7-7c.37-.36.59-.86.59-1.41 0-.55-.23-1.06-.59-1.42zM5.5 7C4.67 7 4 6.33 4 5.5S4.67 4 5.5 4 7 4.67 7 5.5 6.33 7 5.5 7z" fill="currentColor"/>
-                                </g>
-
-                                <!-- 6. Delete: File Minus (or generic delete if File Minus too complex) -->
-                                <!-- Let's use File with X or simpler Delete -->
+                                <!-- 3. Delete: Trash Icon -->
+                                <!-- 3. Delete: Trash Icon -->
                                 <g id="icon-delete">
-                                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor"/>
+                                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
                                 </g>
-                                
-                                <!-- 7. Notify/Modify: File Edit / Page Edit -->
-                                <!-- Using a generic 'Edit' icon or 'File Edit' -->
-                                <g id="icon-modify">
-                                    <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zM6 20V4h7v5h5v11H6zm10.12-5.17l-1.41-1.41-2.91 2.91-1.41-1.41 4.33-4.33 1.41 1.41-4.33 4.33 2.91 2.91 1.41-1.41z" fill="currentColor"/> 
-                                    <!-- Fallback to a simpler "Edit Document" or "Draft" icon if complex paths aren't rendering -->
-                                    <!-- Trying simpler path for modify -->
-                                    <!-- <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" fill="currentColor"/> -->
+
+                                <!-- 4. Edit: Update Alt Icon -->
+                                <!-- 4. Edit: Pencil Icon (edit-svgrepo-com) -->
+                                <g id="icon-edit">
+  <!-- Square outline -->
+  <path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 2v14h14V5H5z"/>
+
+  <!-- Pencil -->
+  <path d="M8 16l2.5-.5L18 8l-2-2-7.5 7.5L8 16z"/>
+
+  <!-- Pencil tip -->
+  <path d="M14.5 6.5l2 2"/>
+</g>
+
+
+
+                                <!-- 5. Push: Upload/Arrow Up -->
+                                <!-- 5. Push: Upload/Arrow Up -->
+                                <g id="icon-push">
+                                    <path d="M12 3L4 11h5v9h6v-9h5L12 3z"/>
+                                </g>
+
+                                <!-- 6. Pull: Download/Arrow Down -->
+                                <!-- 6. Pull: Download/Arrow Down -->
+                                <!-- 6. Pull: Download/Arrow Down -->
+                                <g id="icon-pull">
+                                    <path d="M12.75 3a.75.75 0 0 1 .75.75V11h2.522a.75.75 0 0 1 .53 1.28L12.53 16.31a.75.75 0 0 1-1.06 0l-4.022-4.03a.75.75 0 0 1 .53-1.28h2.522V3.75a.75.75 0 0 1 .75-.75ZM2.75 19.5a.75.75 0 0 1 .75-.75h17a.75.75 0 0 1 0 1.5h-17a.75.75 0 0 1-.75-.75Z" />
+                                </g>
+
+                                <!-- 7. Merge: Git Merge Icon -->
+                                <!-- 7. Merge: Git Merge Icon -->
+                                <!-- 7. Merge: Git Merge Icon -->
+                                <g id="icon-merge">
+                                    <path d="M5 3.254V3.25v.005a3.5 3.5 0 1 1-2 0V3.254h.005a3.501 3.501 0 0 1 2 0V8.25h1.745a4 4 0 0 1 4 4v5.496a3.5 3.5 0 1 1-2 0V12.25a2 2 0 0 0-2-2H5v7.496a3.5 3.5 0 1 1-2 0V8.25c0-.13.006-.258.017-.384A3.5 3.5 0 0 1 5 3.254ZM5 2.5a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Zm0 17a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Zm12-2a1.5 1.5 0 1 0-3 0 1.5 1.5 0 0 0 3 0Z" />
+                                </g>
+
+                                <!-- 8. Undo: Undo Icon -->
+                                <!-- 8. Undo: Undo Icon -->
+                                <g id="icon-undo">
+                                    <path d="M12.5 8c-2.65 0-5.05.99-6.9 2.6L2 7v9h9l-3.62-3.62c1.39-1.16 3.16-1.88 5.12-1.88 3.54 0 6.55 2.31 7.6 5.5l2.37-.78C21.08 11.03 17.15 8 12.5 8z"/>
+                                </g>
+
+                                <!-- 9. Initial / generic -->
+                                <g id="icon-initial">
+                                    <path d="M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z" />
                                 </g>
                                 <g id="icon-normal">
-                                    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z" fill="currentColor"/>
+                                    <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 1.99 2H18c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
                                 </g>
                             </defs>
                             <!-- Edges -->
@@ -367,6 +389,47 @@ export class TimelinePanel {
             // Fallback
             if (iconId === 'icon-undefined') iconId = 'icon-normal';
 
+            // Custom Color Logic for Icons
+            let iconColor = node.color; // Default to lane color, but overridden below for most types
+            switch (node.type) {
+                case 'add':
+                case 'feat':
+                    iconColor = '#2ea043'; // Green
+                    break;
+                case 'bug':
+                case 'fix':
+                case 'delete':
+                    iconColor = '#cf222e'; // Red
+                    break;
+                case 'merge':
+                    iconColor = '#ff9800'; // Orange
+                    break;
+                case 'edit':
+                case 'modify':
+                case 'push':
+                case 'pull':
+                    iconColor = '#a371f7'; // Violet
+                    break;
+                case 'undo':
+                    iconColor = '#d29922'; // Orange
+                    break;
+                case 'initial':
+                    iconColor = '#e3b341'; // Yellow
+                    break;
+                case 'tag':
+                    iconColor = '#a371f7'; // Light Purple
+                    break;
+                case 'branch':
+                    iconColor = '#24292f'; // Dark Grey (GitHub Dark) or use var
+                    // For dark themes, this might be invisible. Let's use a visible color.
+                    iconColor = '#00a8e8'; // Cyan
+                    break;
+                default:
+                    // For 'normal' or unknown, use a distinct Grey instead of potentially light lane colors
+                    iconColor = '#8c959f'; // Grey
+                    break;
+            }
+
             const fillColor = node.color;
             const initials = (node.author || '?').split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
 
@@ -384,14 +447,98 @@ export class TimelinePanel {
 
                                     <!-- Commit Node Icon -->
                                     <!-- Center the icon. Icons are roughly 24x24 viewBox. Scale to fit nicely. -->
-                                    <g transform="translate(-10.8, -10.8) scale(0.9)"> 
-                                        <!-- Removed border circle as requested -->
-                                        <use href="#${iconId}" fill="${fillColor}" class="node-icon" />
+                                    <!-- 1.5x size: scale(1.35). Center at 24*1.35/2 = 16.2. Translate by -16.2 to center it. -->
+                                    <!-- Commit Node Icons (Multi-Icon Support) -->
+                                    <g transform="translate(0, 0)"> 
+                                        ${(() => {
+                    // Determine icons to show
+                    // Priority: Structural types take precedence.
+                    // User Request: "if the commit is merge or pull use respective ison. no need for the delete add, edit etc"
+                    const structuralTypes = ['merge', 'pull', 'initial', 'branch', 'tag', 'undo'];
+                    // console.log('Node Hash:', node.hash, 'Types:', node.types);
+                    const primary = node.types.find(t => structuralTypes.includes(t));
+
+                    let iconsToShow = [];
+                    // Logic: If it's a structural type (especially merge/pull), ONLY show that one.
+                    if (primary) {
+                        iconsToShow.push(primary);
+                    } else {
+                        // Show file ops ONLY if no primary structural type found
+                        const ops = node.types.filter(t => !structuralTypes.includes(t) && t !== 'normal');
+                        if (ops.length > 0) {
+                            // Sort Order determines Position match: 
+                            // i=0 -> Top-Left, i=1 -> Middle, i=2 -> Bottom-Right
+                            // User wants: Delete Top, then Add, then Modify.
+                            // So Priority: Delete, Add, Modify.
+                            const priority = ['delete', 'bug', 'fix', 'add', 'create', 'push', 'edit', 'modify'];
+                            iconsToShow = ops.sort((a, b) => {
+                                let idxA = priority.indexOf(a);
+                                let idxB = priority.indexOf(b);
+                                if (idxA === -1) idxA = 99;
+                                if (idxB === -1) idxB = 99;
+                                return idxA - idxB;
+                            });
+                        } else {
+                            iconsToShow.push('normal');
+                        }
+                    }
+
+                    // Helper for colors
+                    const getIconColor = (t: string) => {
+                        switch (t) {
+                            case 'add': case 'feat': return '#2ea043'; // Green
+                            case 'bug': case 'fix': case 'delete': return '#cf222e'; // Red
+                            case 'merge': case 'pull': return '#ff9800'; // Orange
+                            case 'edit': case 'modify': case 'push': return '#a371f7'; // Violet
+                            case 'undo': return '#d29922'; // Darker Orange
+                            case 'initial': return '#e3b341'; // Yellow
+                            case 'tag': return '#a371f7'; // Light Purple
+                            case 'branch': return '#00a8e8'; // Cyan
+                            default: return '#8c959f'; // Grey
+                        }
+                    };
+
+                    // Render Icons
+                    if (iconsToShow.length === 1) {
+                        const t = iconsToShow[0];
+                        const iconId = `icon-${t}`;
+                        const color = getIconColor(t);
+                        return `<g transform="translate(-16.2, -16.2) scale(1.35)"><use href="#${iconId}" fill="${color}" class="node-icon" /></g>`;
+                    } else {
+                        // Multi-icon stack
+                        // 1. Calculate Positions based on Priority Order (Delete at Top-Left)
+                        const count = iconsToShow.length;
+                        const items = iconsToShow.map((t, i) => {
+                            const step = 12 / (count > 1 ? count - 1 : 1);
+                            // i=0 (Delete) -> -6 (Top-Left)
+                            const offset = -6 + (i * step);
+                            const trans = offset - 14.4;
+                            return { t, trans, color: getIconColor(t) };
+                        });
+
+                        // 2. Reverse for Draw Order (Draw Bottom-Right first (background), Top-Left last (foreground))
+                        // Reverse in-place or create new
+                        items.reverse();
+
+                        return items.map((item, i) => {
+                            const iconId = `icon-${item.t}`;
+                            // Use unique mask id
+                            return `<g transform="translate(${item.trans}, ${item.trans}) scale(1.2)">
+                                                                <defs>
+                                                                    <mask id="mask-${node.hash}-${i}">
+                                                                        <rect x="-10" y="-10" width="50" height="50" fill="white" />
+                                                                    </mask>
+                                                                </defs>
+                                                                <use href="#${iconId}" fill="${item.color}" class="node-icon" stroke="var(--vscode-editor-background)" stroke-width="2" />
+                                                            </g>`;
+                        }).join('');
+                    }
+                })()}
                                     </g>
                                     
                                     <!-- Restored Text Labels with Multiline Support -->
-                                    <foreignObject x="15" y="-14" width="300" height="60">
-                                        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family: var(--vscode-font-family); font-size: 11px; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; word-wrap: break-word;">
+                                    <foreignObject x="15" y="-14" width="300" height="80">
+                                        <div xmlns="http://www.w3.org/1999/xhtml" style="font-family: var(--vscode-font-family); font-size: 16px; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; word-wrap: break-word;">
                                             <span style="color: var(--vscode-descriptionForeground); font-weight: bold;">${new Date(node.date).toLocaleDateString()}</span>
                                             <span style="color: var(--vscode-descriptionForeground)"> : </span>
                                             <span style="color: var(--vscode-editor-foreground)">${safeMessage}</span>

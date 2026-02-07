@@ -78,25 +78,41 @@ export class GitService {
      */
     async getCommitGraph(limit: number = 50): Promise<GitGraphNode[]> {
         try {
-            // Use a custom separator for parsing. '::::' is unlikely to appear in commit messages.
-            const separator = '::::';
+            // Use a custom delimiter for commits to handle multi-line output (files) safely
+            const commitDelimiter = '<<<<COMMIT>>>>';
+            const fieldSeparator = '::::';
             // %H: hash, %P: parent hashes, %an: author, %ae: email, %ad: date, %s: message, %D: refs/branches, %at: timestamp
-            const format = `%H${separator}%P${separator}%an${separator}%ae${separator}%ad${separator}%s${separator}%D${separator}%at`;
+            const format = `${commitDelimiter}%H${fieldSeparator}%P${fieldSeparator}%an${fieldSeparator}%ae${fieldSeparator}%ad${fieldSeparator}%s${fieldSeparator}%D${fieldSeparator}%at`;
 
-            // Use .raw to bypass simple-git's option parsing which was causing "unrecognized argument: --format" errors
             const result = await this.git.raw([
                 'log',
                 `--max-count=${limit}`,
-                `--format=${format}`
+                `--format=${format}`,
+                '--name-status' // Get file status (A, M, D)
             ]);
 
-            return result.split('\n')
-                .filter(line => line.trim().length > 0)
-                .map(line => {
-                    const parts = line.split(separator);
-                    if (parts.length < 8) return null; // Skip malformed lines
+            // Split by the commit delimiter (ignoring the first empty split if any)
+            return result.split(commitDelimiter)
+                .filter(chunk => chunk.trim().length > 0)
+                .map(chunk => {
+                    // Lines: First line is header, subsequent lines are files
+                    const [header, ...fileLines] = chunk.trim().split('\n');
+                    const parts = header.split(fieldSeparator);
+
+                    if (parts.length < 8) return null;
 
                     const [hash, parents, author, email, date, message, refs, timestamp] = parts;
+
+                    // Parse file statuses
+                    const files: { status: string; path: string }[] = fileLines
+                        .filter(line => line.trim().length > 0)
+                        .map(line => {
+                            const [status, ...pathParts] = line.trim().split(/\s+/);
+                            return {
+                                status: status ? status[0] : 'M', // 'A', 'M', 'D'
+                                path: pathParts.join(' ')
+                            };
+                        });
 
                     return {
                         hash: hash,
@@ -106,7 +122,8 @@ export class GitService {
                         date: date,
                         message: message,
                         branch: this.parseBranchName(refs),
-                        timestamp: parseInt(timestamp, 10)
+                        timestamp: parseInt(timestamp, 10),
+                        files: files
                     };
                 })
                 .filter(node => node !== null) as GitGraphNode[];

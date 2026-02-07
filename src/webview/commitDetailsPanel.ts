@@ -196,6 +196,17 @@ export class CommitDetailsPanel {
             });
         }
 
+        const sortNodes = (a: TreeNode, b: TreeNode) => {
+            if (a.type !== b.type) return a.type === 'folder' ? -1 : 1;
+            if (a.type === 'file' && b.type === 'file') {
+                const getScore = (s?: string) => s === 'D' ? 1 : s === 'A' ? 2 : s === 'M' ? 3 : 4;
+                const scoreA = getScore(a.status);
+                const scoreB = getScore(b.status);
+                if (scoreA !== scoreB) return scoreA - scoreB;
+            }
+            return a.name.localeCompare(b.name);
+        };
+
         function renderTree(node: TreeNode, depth: number = 0): string {
             const indent = depth * 20;
             if (node.type === 'file') {
@@ -214,7 +225,7 @@ export class CommitDetailsPanel {
                 </li>`;
             } else {
                 const childrenHtml = Object.values(node.children || {})
-                    .sort((a, b) => (a.type !== b.type ? (a.type === 'folder' ? -1 : 1) : a.name.localeCompare(b.name)))
+                    .sort(sortNodes)
                     .map(child => renderTree(child, depth + 1))
                     .join('');
 
@@ -230,7 +241,7 @@ export class CommitDetailsPanel {
         }
 
         const treeHtml = Object.values(root.children || {})
-            .sort((a, b) => (a.type !== b.type ? (a.type === 'folder' ? -1 : 1) : a.name.localeCompare(b.name)))
+            .sort(sortNodes)
             .map(child => renderTree(child))
             .join('');
 
@@ -249,8 +260,8 @@ export class CommitDetailsPanel {
                     --color-added: #4caf50;
                     --bg-deleted: rgba(244, 67, 54, 0.1);
                     --color-deleted: #f44336;
-                    --bg-modified: rgba(33, 150, 243, 0.1);
-                    --color-modified: #2196f3;
+                    --bg-modified: rgba(163, 113, 247, 0.1);
+                    --color-modified: #a371f7;
                     --text-color: var(--vscode-editor-foreground);
                     --secondary-text: var(--vscode-descriptionForeground);
                     --border-color: var(--vscode-panel-border);

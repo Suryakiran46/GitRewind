@@ -5,7 +5,8 @@ export interface GraphNode extends GitGraphNode {
     y: number;
     lane: number;
     color: string;
-    type: 'initial' | 'merge' | 'branch' | 'tag' | 'fix' | 'feat' | 'normal' | 'add' | 'delete' | 'modify';
+    type: string; // Primary type (legacy/fallback)
+    types: string[]; // List of specific action types for multi-icon support
 }
 
 export interface GraphLink {
@@ -49,27 +50,80 @@ export class GraphEngine {
 
         // Y position is simply the index (chronological)
         commits.forEach((commit, index) => {
-            // Determine Node Type
-            let type: GraphNode['type'] = 'normal';
+            // Determine Node Types
+            const types: string[] = [];
+            let primaryType = 'normal';
+
             const lowerMsg = (commit.message || '').toLowerCase();
             const refs = (commit.branch || '').toLowerCase(); // branch property holds refs string usually
+            const files = commit.files || [];
 
+            // 1. High Priority Structural Types
             if (commit.parents.length === 0) {
-                type = 'initial';
+                types.push('initial');
+                primaryType = 'initial';
             } else if (commit.parents.length > 1) {
-                type = 'merge';
+                types.push('merge');
+                primaryType = 'merge';
             } else if (refs.includes('tag:')) {
-                type = 'tag';
-            } else if (refs.includes('head') || refs.length > 0) { // If it has a branch name, it's a tip
-                // But wait, many commits might be on a branch. 
-                // We want "Branch Tip" specifically?
-                // Usually simple-git refs only show up on the tip capable commits.
-                // Let's assume if it has a ref (branch name), it is a tip of that ref.
-                type = 'branch';
-            } else if (lowerMsg.includes('fix') || lowerMsg.includes('bug') || lowerMsg.includes('issue')) {
-                type = 'fix';
-            } else if (lowerMsg.includes('feat') || lowerMsg.includes('add') || lowerMsg.includes('new')) {
-                type = 'feat';
+                types.push('tag');
+                primaryType = 'tag';
+            } else if (lowerMsg.includes('pull') || lowerMsg.includes('merge')) {
+                // Enhanced Pull/Merge detection
+                if (!types.includes('merge') && !types.includes('pull')) {
+                    // If it says 'merge', treat as merge unless we want to distinguish
+                    if (lowerMsg.includes('pull')) {
+                        types.push('pull');
+                        primaryType = 'pull';
+                    } else {
+                        types.push('merge');
+                        primaryType = 'merge';
+                    }
+                }
+            } else if (lowerMsg.includes('revert') || lowerMsg.includes('undo')) {
+                types.push('undo');
+                primaryType = 'undo';
+            }
+
+            // 2. File Operation Types (Only if not a merge/pull, or if we want to show everything)
+            // User request: "if the commit is merge or pull use respective ison. else ..."
+            // So if we have merge/pull, we STOP here (effectively).
+
+            if (types.length === 0) {
+                // Analyze file stats
+                const hasAdd = files.some(f => f.status === 'A');
+                // Git status 'D' is delete. 'M' is modify. 'R' is rename (treat as modify/edit).
+                const hasDelete = files.some(f => f.status === 'D');
+                const hasModify = files.some(f => f.status === 'M' || f.status === 'R' || f.status === 'C' || f.status === 'T');
+
+                if (hasAdd) types.push('add');
+                if (hasDelete) types.push('delete');
+                if (hasModify) types.push('edit');
+
+                // Fallback to message heuristics if no file stats available (e.g. old data or errors)
+                if (types.length === 0) {
+                    if (lowerMsg.includes('fix') || lowerMsg.includes('bug')) {
+                        types.push('bug');
+                    } else if (lowerMsg.includes('feat') || lowerMsg.includes('add')) {
+                        types.push('add');
+                    } else if (lowerMsg.includes('delete') || lowerMsg.includes('remove')) {
+                        types.push('delete');
+                    } else if (lowerMsg.includes('edit') || lowerMsg.includes('update')) {
+                        types.push('edit');
+                    } else if (lowerMsg.includes('push')) {
+                        types.push('push');
+                    }
+                }
+            }
+
+            // Default
+            if (types.length === 0) {
+                types.push('normal');
+            }
+
+            // Set primary type for backward compatibility / color default
+            if (primaryType === 'normal' && types.length > 0) {
+                primaryType = types[0];
             }
 
             const node: GraphNode = {
@@ -78,7 +132,8 @@ export class GraphEngine {
                 y: index * 80 + 30, // 80px vertical spacing for multiline messages
                 lane: 0,
                 color: '',
-                type: type
+                type: primaryType,
+                types: types
             };
             commitMap.set(commit.hash, node);
             nodes.push(node);
@@ -173,7 +228,7 @@ export class GraphEngine {
             }
 
 
-            node.x = node.lane * 30 + 30; // 30px horizontal spacing
+            node.x = node.lane * 30 + 50; // 30px horizontal spacing, 50px base offset for avatars
             node.color = this.laneColors[node.lane % this.laneColors.length];
         });
 
