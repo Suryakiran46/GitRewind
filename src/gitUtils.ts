@@ -4,9 +4,13 @@ import * as path from 'path';
 
 export interface CommitInfo {
   hash: string;
+  parents?: string[];
+  author: string;
+  authorEmail?: string;
   date: string;
   message: string;
-  author: string;
+  timestamp?: number;
+  files?: { status: string; path: string }[];
 }
 
 export class GitUtils {
@@ -28,7 +32,7 @@ export class GitUtils {
       if (!isRepo) {
         return null;
       }
-      
+
       const root = await git.revparse(['--show-toplevel']);
       return root.trim();
     } catch (error) {
@@ -42,8 +46,10 @@ export class GitUtils {
    */
   async getFileHistory(filePath: string, maxCount: number = 10): Promise<CommitInfo[]> {
     try {
-      const relativePath = path.relative(this.workspaceRoot, filePath);
-      
+      let relativePath = path.relative(this.workspaceRoot, filePath);
+      // Fix: Normalize path separators to forward slashes for Git
+      relativePath = relativePath.split(path.sep).join('/');
+
       const log = await this.git.log({
         file: relativePath,
         maxCount
@@ -66,12 +72,29 @@ export class GitUtils {
    */
   async getFileAtCommit(filePath: string, commitHash: string): Promise<string | null> {
     try {
-      const relativePath = path.relative(this.workspaceRoot, filePath);
+      let relativePath = path.relative(this.workspaceRoot, filePath);
+      // Fix: Normalize path separators to forward slashes for Git
+      relativePath = relativePath.split(path.sep).join('/');
+
       const content = await this.git.show([`${commitHash}:${relativePath}`]);
       return content;
     } catch (error) {
       console.error(`Error getting file at commit ${commitHash}:`, error);
       return null;
+    }
+  }
+
+  /**
+   * Get raw diff between two commits for a specific file
+   */
+  async getDiff(filePath: string, hashA: string, hashB: string): Promise<string> {
+    try {
+      let relativePath = path.relative(this.workspaceRoot, filePath);
+      relativePath = relativePath.split(path.sep).join('/');
+      return await this.git.diff([hashA, hashB, '--', relativePath]);
+    } catch (error) {
+      console.error('Error getting diff:', error);
+      return '';
     }
   }
 
@@ -98,6 +121,59 @@ export class GitUtils {
       return null;
     }
   }
+
+  /**
+   * Get details for a single commit (header + files).
+   */
+  async getCommitDetails(hash: string): Promise<CommitInfo | null> {
+    try {
+      // Get header info
+      const separator = '::::';
+      const format = `%H${separator}%P${separator}%an${separator}%ae${separator}%ad${separator}%B${separator}%at`; // %B for full body
+      const logResult = await this.git.show([hash, `--format=${format}`, '--no-patch']);
+
+      const [fullHash, parents, author, email, date, message, timestamp] = logResult.trim().split(separator);
+
+      // Get file stats
+      const files = await this.getChangedFiles(hash);
+
+      return {
+        hash: fullHash,
+        parents: parents ? parents.split(' ') : [],
+        author: author,
+        authorEmail: email,
+        date: date,
+        message: message ? message.trim() : '',
+        timestamp: parseInt(timestamp, 10),
+        files: files
+      };
+    } catch (error) {
+      console.error(`Error fetching details for ${hash}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get list of changed files for a specific commit.
+   */
+  async getChangedFiles(hash: string): Promise<{ status: string; path: string }[]> {
+    try {
+      // git show --name-status --format= <commit>
+      const result = await this.git.show([hash, '--name-status', '--format=']);
+      return result.split('\n')
+        .filter(line => line.trim().length > 0)
+        .map(line => {
+          const [status, filePath] = line.split(/\t/);
+          return {
+            status: status || 'M',
+            path: filePath || line
+          };
+        });
+    } catch (error) {
+      console.error('Error getting changed files:', error);
+      return [];
+    }
+  }
 }
 
 /**
@@ -112,7 +188,7 @@ export async function createGitUtils(filePath: string): Promise<GitUtils | null>
 
   const gitUtils = new GitUtils(repoRoot);
   const isRepo = await gitUtils.isGitRepository();
-  
+
   if (!isRepo) {
     vscode.window.showErrorMessage('Git repository not found.');
     return null;

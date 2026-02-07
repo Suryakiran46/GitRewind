@@ -115,6 +115,7 @@ class TimelinePanel {
                     height: 100vh;
                     overflow: hidden;
                     margin: 0;
+                    user-select: none; /* Prevent text selection while dragging */
                 }
                 #graph-container {
                     flex: 1; /* Take full width */
@@ -363,6 +364,45 @@ class TimelinePanel {
                     }
                 });
 
+                // --- Drag-to-Scroll Logic ---
+                let isDragging = false;
+                let startX, startY, scrollLeft, scrollTop;
+
+                zoomWrapper.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    zoomWrapper.classList.add('active'); // CSS matches: cursor: grabbing
+                    startX = e.pageX - zoomWrapper.offsetLeft;
+                    startY = e.pageY - zoomWrapper.offsetTop;
+                    scrollLeft = zoomWrapper.scrollLeft;
+                    scrollTop = zoomWrapper.scrollTop;
+                    
+                    // Stop any text selection
+                    e.preventDefault();
+                });
+
+                zoomWrapper.addEventListener('mouseleave', () => {
+                    isDragging = false;
+                    zoomWrapper.classList.remove('active');
+                });
+
+                zoomWrapper.addEventListener('mouseup', () => {
+                    isDragging = false;
+                    zoomWrapper.classList.remove('active');
+                });
+
+                zoomWrapper.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    e.preventDefault();
+                    
+                    const x = e.pageX - zoomWrapper.offsetLeft;
+                    const y = e.pageY - zoomWrapper.offsetTop;
+                    const walkX = (x - startX) * 1; // 1:1 scroll speed
+                    const walkY = (y - startY) * 1;
+                    
+                    zoomWrapper.scrollLeft = scrollLeft - walkX;
+                    zoomWrapper.scrollTop = scrollTop - walkY;
+                });
+
 
                 if (initialDetails) {
                    setTimeout(() => {
@@ -372,6 +412,8 @@ class TimelinePanel {
                 }
 
                 function selectCommit(hash) {
+                    if (isDragging) return; // Prevent click when dragging
+                    
                     vscode.postMessage({
                         command: 'selectCommit',
                         hash: hash

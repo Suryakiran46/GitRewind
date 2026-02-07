@@ -25,32 +25,47 @@ var __importStar = (this && this.__importStar) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.deactivate = exports.activate = void 0;
 const vscode = __importStar(require("vscode"));
+const gitUtils_1 = require("./gitUtils");
+const diffUtils_1 = require("./diffUtils");
+const panel_1 = require("./webview/panel");
 const gitService_1 = require("./services/gitService");
 const timelinePanel_1 = require("./webview/timelinePanel");
 const graphEngine_1 = require("./services/graphEngine");
 function activate(context) {
     console.log('Code Time Machine extension is now active!');
-    // --- Legacy "Show History" (Function/Selection scope) ---
-    // We are keeping this for now as requested, but we could route it through ScopeResolver later.
-    // --- Legacy "Show History" (Function/Selection scope) ---
-    // NOW: The primary entry point. Redirects to the main Timeline View.
+    // --- Main Command: Show Repository Graph ---
+    // Always opens the Repo Timeline, independent of active file selection (as requested).
     let disposable = vscode.commands.registerCommand('codeTimeMachine.showHistory', async () => {
-        // Determine context (File vs Repo) - for now default to Repo Timeline
-        await showRepoTimeline(context);
+        // We prioritize the workspace root, as this is a repo-level view.
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        let targetPath = '';
+        if (workspaceFolders && workspaceFolders.length > 0) {
+            targetPath = workspaceFolders[0].uri.fsPath;
+        }
+        else {
+            // Fallback to active editor path if no workspace (rare for git)
+            const editor = vscode.window.activeTextEditor;
+            if (editor) {
+                targetPath = editor.document.uri.fsPath;
+            }
+        }
+        if (!targetPath) {
+            vscode.window.showErrorMessage("Please open a Git repository folder to use Code Time Machine.");
+            return;
+        }
+        // Always show the Repo Timeline
+        await showRepoTimeline(context, targetPath);
     });
-    // --- New "Show Repository Timeline" (Repo scope) ---
-    let repoHistoryDisposable = vscode.commands.registerCommand('codeTimeMachine.showRepoHistory', async () => {
-        await showRepoTimeline(context);
-    });
-    // --- Internal commands for the new webview ---
+    // --- Internal commands for the webview interactions ---
     let detailsDisposable = vscode.commands.registerCommand('codeTimeMachine.showCommitDetails', async (hash) => {
         await showCommitDetails(context, hash);
     });
     let browseDisposable = vscode.commands.registerCommand('codeTimeMachine.browseCommit', async (hash) => {
         // ... existing browse logic
-        const editor = vscode.window.activeTextEditor;
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-        const targetPath = editor?.document.uri.fsPath || workspaceRoot;
+        // Fallback if needed, though workspaceRoot should exist if we are here
+        const editor = vscode.window.activeTextEditor;
+        const targetPath = workspaceRoot || editor?.document.uri.fsPath;
         if (!targetPath)
             return;
         const gitService = await gitService_1.GitService.create(targetPath);
@@ -131,21 +146,141 @@ function activate(context) {
         await vscode.env.clipboard.writeText(hash);
         vscode.window.showInformationMessage(`Copied hash ${hash.substring(0, 7)} to clipboard`);
     });
-    context.subscriptions.push(disposable, repoHistoryDisposable, detailsDisposable, browseDisposable, openFileDisposable, revertDisposable, checkoutDisposable, copyHashDisposable);
+    let navigateDisposable = vscode.commands.registerCommand('codeTimeMachine.navigateToCommit', async (hash) => {
+        const editor = vscode.window.activeTextEditor;
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+        const targetPath = editor?.document.uri.fsPath || workspaceRoot;
+        if (!targetPath)
+            return;
+        const gitUtils = await (0, gitUtils_1.createGitUtils)(targetPath);
+        if (!gitUtils)
+            return;
+        try {
+            const details = await gitUtils.getCommitDetails(hash);
+            if (details && panel_1.CodeTimeMachinePanel.currentPanel) {
+                panel_1.CodeTimeMachinePanel.currentPanel.handleExternalMessage({
+                    command: 'setCommitDetails',
+                    details: details
+                });
+            }
+        }
+        catch (e) {
+            vscode.window.showErrorMessage("Failed to load commit details: " + e);
+        }
+    });
+    let selectFileDisposable = vscode.commands.registerCommand('codeTimeMachine.selectFile', async (hash, filePath, status) => {
+        const editor = vscode.window.activeTextEditor;
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+        const targetPath = editor?.document.uri.fsPath || workspaceRoot;
+        if (!targetPath)
+            return;
+        const gitUtils = await (0, gitUtils_1.createGitUtils)(targetPath);
+        if (!gitUtils)
+            return;
+        try {
+            let leftContent = '';
+            let rightContent = '';
+            let leftTitle = 'Previous';
+            let rightTitle = 'Current';
+            if (status === 'A') {
+                rightContent = await gitUtils.getFileAtCommit(filePath, hash) || '';
+                leftTitle = 'Non-existent';
+                rightTitle = `Added in ${hash.substring(0, 7)}`;
+            }
+            else if (status === 'D') {
+                const details = await gitUtils.getCommitDetails(hash);
+                if (details && details.parents && details.parents.length > 0) {
+                    leftContent = await gitUtils.getFileAtCommit(filePath, details.parents[0]) || '';
+                    leftTitle = `Commit ${details.parents[0].substring(0, 7)}`;
+                }
+                else {
+                    leftTitle = 'Unknown Parent';
+                }
+                rightTitle = 'Deleted';
+            }
+            else {
+                // Modified
+                rightContent = await gitUtils.getFileAtCommit(filePath, hash) || '';
+                const details = await gitUtils.getCommitDetails(hash);
+                if (details && details.parents && details.parents.length > 0) {
+                    leftContent = await gitUtils.getFileAtCommit(filePath, details.parents[0]) || '';
+                    leftTitle = `Commit ${details.parents[0].substring(0, 7)}`;
+                }
+                else {
+                    leftTitle = 'Initial Commit';
+                }
+                rightTitle = `Commit ${hash.substring(0, 7)}`;
+            }
+            const diffHtml = diffUtils_1.DiffUtils.generateSideBySideHtml(leftContent, rightContent, leftTitle, rightTitle, filePath);
+            if (panel_1.CodeTimeMachinePanel.currentPanel) {
+                panel_1.CodeTimeMachinePanel.currentPanel.handleExternalMessage({
+                    command: 'updateDiff',
+                    diffHtml: diffHtml
+                });
+            }
+        }
+        catch (e) {
+            vscode.window.showErrorMessage("Failed to load file diff: " + e);
+        }
+    });
+    context.subscriptions.push(disposable, detailsDisposable, browseDisposable, openFileDisposable, revertDisposable, checkoutDisposable, copyHashDisposable, navigateDisposable, selectFileDisposable);
 }
 exports.activate = activate;
-async function showRepoTimeline(context) {
-    const editor = vscode.window.activeTextEditor;
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath; // Simplified
-    // Use GitService to find root
-    const targetPath = editor?.document.uri.fsPath || workspaceRoot;
-    if (!targetPath) {
-        vscode.window.showErrorMessage("No workspace or file open.");
+// --- Helper Functions ---
+async function showFileHistory(context, editor) {
+    const filePath = editor.document.uri.fsPath;
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+    const targetPath = workspaceRoot || filePath;
+    if (!targetPath)
+        return;
+    const gitUtils = await (0, gitUtils_1.createGitUtils)(filePath);
+    if (!gitUtils) {
+        vscode.window.showErrorMessage("Git repository not found.");
         return;
     }
+    await vscode.window.withProgress({
+        location: vscode.ProgressLocation.Notification,
+        title: "Loading File History...",
+        cancellable: false
+    }, async (progress) => {
+        try {
+            // 1. Fetch File History (Flat List)
+            // We use the simpler method for single-file history
+            const commits = await gitUtils.getFileHistory(filePath, 50);
+            // 2. Fetch Initial Details for the latest commit (if any)
+            let initialDetails = null;
+            let diffHtml = '';
+            if (commits.length > 0) {
+                const head = commits[0]; // Latest commit
+                // Prepare initial view: show diff of this file in the latest commit
+                // vs its parent.
+                const fileDiff = await gitUtils.getDiff(filePath, head.hash + '~1', head.hash);
+                // Note: This simple diff might fail for initial commits.
+                // For the File History Panel, we just need basic info first.
+            }
+            // 3. Open Panel
+            panel_1.CodeTimeMachinePanel.createOrShow(context.extensionUri, {
+                commits: commits,
+                currentCommitIndex: 0,
+                functionName: '',
+                currentFunction: null,
+                historicalFunction: null,
+                diffHtml: '',
+                filePath: filePath,
+                similarity: 0,
+                changeStats: undefined
+            });
+        }
+        catch (e) {
+            vscode.window.showErrorMessage("Failed to load history: " + e);
+        }
+    });
+}
+async function showRepoTimeline(context, targetPath) {
+    // Use GitService to find root (it handles finding root from a subfolder path)
     const gitService = await gitService_1.GitService.create(targetPath);
     if (!gitService) {
-        vscode.window.showErrorMessage("Not a git repository.");
+        vscode.window.showErrorMessage("The current folder or file is not part of a Git repository. Please open a folder that has been initialized with Git.");
         return;
     }
     // Fetch Graph

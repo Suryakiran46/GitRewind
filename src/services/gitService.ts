@@ -16,8 +16,48 @@ export class GitService {
      */
     static async create(startPath: string): Promise<GitService | null> {
         try {
-            const git = simpleGit(path.dirname(startPath));
-            const isRepo = await git.checkIsRepo();
+            // If startPath is a file, use its directory. If it's a directory, use it directly.
+            // However, to be safe, we can try both or relies on simple-git's resolution.
+            // Simple-git init expects a directory. 
+
+            let targetDir = startPath;
+            // Basic check if it looks like a file (has extension), though not perfect.
+            // Better to rely on VS Code's knowledge if possible, but here we just have a string.
+            // Let's assume if it has an extension it's a file, or we can try to stat it if we imported fs.
+            // For now, let's just use the logic: "git rev-parse --show-toplevel" works from within a subdir too.
+
+            // If startPath is "C:\Projects\Repo\file.ts", dirname is "C:\Projects\Repo".
+            // If startPath is "C:\Projects\Repo", dirname is "C:\Projects". This is BAD if we are at root.
+
+            // FIX: We should attempt to use startPath directly if it is a directory. 
+            // Since we can't easily check if it's a file vs dir without fs, let's use a try-catch approach
+            // or just assume simple-git handles it if we pass the right thing.
+
+            // Actually, we can use 'path.parse' or just try to initialize simple-git on startPath.
+            // If startPath is a file, simple-git(startPath) might fail or work depending on implementation.
+
+            // SAFEST APPROACH:
+            // 1. Try to initialize in startPath.
+            // 2. Check isRepo.
+            // 3. If that fails, try dirname(startPath).
+
+            let git = simpleGit(startPath);
+            let isRepo = false;
+            try {
+                isRepo = await git.checkIsRepo();
+            } catch (e) {
+                // simple-git might throw if startPath is a file
+            }
+
+            if (!isRepo) {
+                // Try parent dir (assuming startPath was a file)
+                const parent = path.dirname(startPath);
+                if (parent !== startPath) {
+                    git = simpleGit(parent);
+                    isRepo = await git.checkIsRepo();
+                }
+            }
+
             if (!isRepo) return null;
 
             const root = await git.revparse(['--show-toplevel']);

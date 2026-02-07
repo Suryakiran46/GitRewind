@@ -31,11 +31,7 @@
     "commands": [
       {
         "command": "codeTimeMachine.showHistory",
-        "title": "Code Time Machine: Show History"
-      },
-      {
-        "command": "codeTimeMachine.showRepoHistory",
-        "title": "Code Time Machine: Show Repository Timeline"
+        "title": "Code Time Machine: Show Repository Graph"
       },
       {
         "command": "codeTimeMachine.cleanup",
@@ -43,11 +39,10 @@
       }
     ],
     "menus": {
-      "editor/context": [
+      "commandPalette": [
         {
           "command": "codeTimeMachine.showHistory",
-          "when": "editorHasSelection",
-          "group": "navigation"
+          "when": "workspaceFolderCount > 0"
         }
       ]
     }

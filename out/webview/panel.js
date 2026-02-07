@@ -57,7 +57,7 @@ class CodeTimeMachinePanel {
         this.panel.webview.onDidReceiveMessage(message => {
             switch (message.command) {
                 case 'navigateToCommit':
-                    this.handleNavigateToCommit(message.commitIndex);
+                    this.handleNavigateToCommit(message.commitIndex, message.hash);
                     return;
                 case 'showCommitDetails':
                     this.handleShowCommitDetails(message.commit);
@@ -71,12 +71,18 @@ class CodeTimeMachinePanel {
                 case 'navigateDiff':
                     this.handleNavigateDiff(message.direction);
                     return;
+                case 'selectFile':
+                    this.handleSelectFile(message.filePath, message.status, message.hash);
+                    return;
             }
         }, null, this.disposables);
     }
-    handleNavigateToCommit(commitIndex) {
+    handleNavigateToCommit(commitIndex, hash) {
         // Emit an event that the extension can listen to
-        vscode.commands.executeCommand('codeTimeMachine.navigateToCommit', commitIndex);
+        vscode.commands.executeCommand('codeTimeMachine.navigateToCommit', hash);
+    }
+    handleSelectFile(filePath, status, hash) {
+        vscode.commands.executeCommand('codeTimeMachine.selectFile', hash, filePath, status);
     }
     handleShowCommitDetails(commit) {
         vscode.window.showInformationMessage(`Commit: ${commit.hash.substring(0, 8)}\nAuthor: ${commit.author}\nDate: ${commit.date}\nMessage: ${commit.message}`, { modal: false });
@@ -93,6 +99,9 @@ class CodeTimeMachinePanel {
         // Navigate to next/previous diff in the active diff editor
         const command = direction === 'next' ? 'editor.action.diffReview.next' : 'editor.action.diffReview.prev';
         vscode.commands.executeCommand(command);
+    }
+    handleExternalMessage(message) {
+        this.panel.webview.postMessage(message);
     }
     updateContent(data) {
         this.panel.webview.html = this.getWebviewContent(data);
@@ -124,674 +133,418 @@ class CodeTimeMachinePanel {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline';">
-    <title>Code Time Machine ${isControlPanel ? '- Control Panel' : ''}</title>
+    <title>Code Time Machine</title>
     <style>
+        :root {
+            --border-color: var(--vscode-panel-border);
+            --bg-color: var(--vscode-editor-background);
+            --text-color: var(--vscode-editor-foreground);
+            --hover-bg: var(--vscode-list-hoverBackground);
+            --active-bg: var(--vscode-list-activeSelectionBackground);
+            --active-fg: var(--vscode-list-activeSelectionForeground);
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+            font-family: var(--vscode-font-family);
             margin: 0;
-            padding: 20px;
-            background-color: var(--vscode-editor-background);
-            color: var(--vscode-editor-foreground);
-            line-height: 1.6;
-        }
-
-        .header {
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid var(--vscode-panel-border);
-        }
-
-        .header h1 {
-            margin: 0 0 10px 0;
-            font-size: 24px;
-            color: var(--vscode-foreground);
-        }
-
-        .function-info {
-            background: var(--vscode-textBlockQuote-background);
-            padding: 10px;
-            border-radius: 4px;
-            margin-bottom: 15px;
-            border-left: 4px solid var(--vscode-textLink-foreground);
-        }
-
-        .commit-navigation {
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
             display: flex;
-            align-items: center;
-            gap: 15px;
-            margin-bottom: 20px;
-            padding: 15px;
-            background: var(--vscode-input-background);
-            border-radius: 6px;
-            border: 1px solid var(--vscode-input-border);
-        }
-
-        .commit-info {
-            flex: 1;
-        }
-
-        .commit-hash {
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-            background: var(--vscode-textCodeBlock-background);
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 0.9em;
-        }
-
-        .nav-button {
-            background: var(--vscode-button-background);
-            color: var(--vscode-button-foreground);
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background-color 0.2s;
-        }
-
-        .nav-button:hover:not(:disabled) {
-            background: var(--vscode-button-hoverBackground);
-        }
-
-        .nav-button:disabled {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-            cursor: not-allowed;
-            opacity: 0.6;
-        }
-
-        .similarity-badge {
-            background: var(--vscode-badge-background);
-            color: var(--vscode-badge-foreground);
-            padding: 4px 8px;
-            border-radius: 12px;
-            font-size: 0.85em;
-            font-weight: 500;
-        }
-
-        .diff-container {
-            display: flex;
-            gap: 2px;
-            border: 1px solid var(--vscode-panel-border);
-            border-radius: 8px;
+            flex-direction: column;
             overflow: hidden;
-            background: var(--vscode-editor-background);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
-        .diff-container.no-changes {
-            justify-content: center;
-        }
-
-        .diff-side {
-            flex: 1;
-            min-width: 0;
-            background: var(--vscode-editor-background);
-        }
-
-        .diff-side.single {
-            max-width: 900px;
-        }
-
-        .diff-header {
-            background: linear-gradient(135deg, var(--vscode-panel-background), var(--vscode-input-background));
-            padding: 14px 18px;
-            font-weight: 600;
-            border-bottom: 2px solid var(--vscode-panel-border);
-            font-size: 14px;
-            color: var(--vscode-foreground);
-            text-align: center;
-            letter-spacing: 0.5px;
-        }
-
-        .diff-content {
-            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
-            font-size: 11px;
-            line-height: 1.5;
-            overflow-x: auto;
-            max-height: 700px;
-            overflow-y: auto;
-            border: 1px solid var(--vscode-panel-border);
-            position: relative;
-        }
-
-        .line {
+        /* --- Layer 1: Timeline (Top) --- */
+        .timeline-container {
+            height: 120px;
+            border-bottom: 2px solid var(--border-color);
+            background: var(--vscode-sideBar-background);
             display: flex;
-            min-height: 20px;
-            white-space: pre;
-            position: relative;
+            flex-direction: column;
+            flex-shrink: 0;
         }
 
-        .line-number {
-            color: var(--vscode-editorLineNumber-foreground);
-            background: var(--vscode-editorGutter-background);
-            padding: 0 10px;
-            min-width: 55px;
-            text-align: right;
+        .section-header {
+            padding: 8px 16px;
             font-size: 11px;
-            user-select: none;
-            border-right: 1px solid var(--vscode-panel-border);
-            font-weight: 500;
-        }
-
-        .line-content {
-            padding: 0 16px;
-            flex: 1;
-            white-space: pre-wrap;
-            word-break: break-word;
-            font-family: inherit;
-        }
-
-        .line.added {
-            background-color: #1e4d3e;
-            border-left: 4px solid #28a745;
+            text-transform: uppercase;
             font-weight: 600;
-        }
-
-        .line.added .line-content {
-            color: #acf2bd;
-        }
-
-        .line.added .line-number {
-            background-color: #1e4d3e;
-            color: #28a745;
-            font-weight: bold;
-        }
-
-        .line.removed {
-            background-color: #4d1e1e;
-            border-left: 4px solid #dc3545;
-            font-weight: 600;
-        }
-
-        .line.removed .line-content {
-            color: #f2acac;
-        }
-
-        .line.removed .line-number {
-            background-color: #4d1e1e;
-            color: #dc3545;
-            font-weight: bold;
-        }
-
-        .line.unchanged {
-            background-color: var(--vscode-editor-background);
-        }
-
-        .line.unchanged:hover {
-            background-color: var(--vscode-list-hoverBackground);
-        }
-
-        /* Syntax highlighting for common tokens */
-        .line-content .keyword {
-            color: #569cd6;
-            font-weight: bold;
-        }
-
-        .line-content .string {
-            color: #ce9178;
-        }
-
-        .line-content .comment {
-            color: #6a9955;
-            font-style: italic;
-        }
-
-        .line-content .number {
-            color: #b5cea8;
-        }
-
-        .line-content .function {
-            color: #dcdcaa;
-            font-weight: 500;
-        }
-
-        .no-function-message {
-            text-align: center;
-            padding: 40px 20px;
             color: var(--vscode-descriptionForeground);
-            background: var(--vscode-textBlockQuote-background);
-            border-radius: 8px;
-            border: 1px solid var(--vscode-input-border);
-            margin: 20px;
-        }
-
-        .no-function-message h3 {
-            color: var(--vscode-foreground);
-            margin-bottom: 16px;
-            font-size: 18px;
-        }
-
-        .no-function-message ul {
-            text-align: left;
-            max-width: 400px;
-            margin: 16px auto;
-        }
-
-        .no-function-message li {
-            margin: 8px 0;
-        }
-
-        .commit-selector {
-            margin: 20px 0;
-            padding: 16px;
-            background: var(--vscode-input-background);
-            border-radius: 6px;
-            border: 1px solid var(--vscode-input-border);
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        }
-
-        .selector-header {
-            font-weight: 600;
-            margin-bottom: 12px;
-            color: var(--vscode-foreground);
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .commit-dropdown {
-            width: 100%;
-            padding: 8px 12px;
-            background: var(--vscode-dropdown-background);
-            border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border));
-            border-radius: 4px;
-            color: var(--vscode-dropdown-foreground);
-            font-size: 13px;
-            font-family: inherit;
-            cursor: pointer;
-            appearance: none;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right 8px center;
-            background-size: 16px;
-            padding-right: 32px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            transition: all 0.2s ease;
-        }
-
-        .commit-dropdown:hover {
-            border-color: var(--vscode-focusBorder, var(--vscode-textLink-foreground));
-            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
-        }
-
-        .commit-dropdown:focus {
-            outline: 1px solid var(--vscode-focusBorder);
-            outline-offset: -1px;
-            border-color: var(--vscode-focusBorder);
-            box-shadow: 0 0 0 1px var(--vscode-focusBorder);
-        }
-
-        .commit-dropdown option {
-            background: var(--vscode-dropdown-background);
-            color: var(--vscode-dropdown-foreground);
-            padding: 8px 12px;
-            border: none;
-        }
-
-        .commit-dropdown option:hover,
-        .commit-dropdown option:focus {
-            background: var(--vscode-list-hoverBackground);
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: var(--vscode-descriptionForeground);
-        }
-
-        .change-stats {
-            background: var(--vscode-input-background);
-            padding: 15px;
-            border-radius: 6px;
-            border: 1px solid var(--vscode-input-border);
-            margin-bottom: 20px;
+            background: rgba(0,0,0,0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
-        .change-summary {
+        .timeline-scroll-area {
+            flex: 1;
+            overflow-x: auto;
+            overflow-y: hidden;
             display: flex;
-            gap: 20px;
             align-items: center;
+            padding: 0 20px;
+            /* gap: 20px; Removed gap to manually control line connectivity */
         }
 
-        .change-count {
+        .timeline-node {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: pointer;
+            opacity: 0.6;
+            transition: all 0.2s;
+            min-width: 120px; /* Increased width */
+            position: relative;
+        }
+
+        /* ... */
+
+        .timeline-line {
+            position: absolute;
+            top: 6px; /* Center of dot */
+            left: 50%;
+            width: 100%; /* Spans to the center of the next node */
+            height: 2px;
+            background: var(--border-color);
+            z-index: -1;
+        }
+        
+        .timeline-node:last-child .timeline-line {
+            display: none;
+        }
+
+        /* --- Main Content Area (Layers 2 & 3) --- */
+        .main-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* --- Layer 2: Changes / Commit Details (Left Sidebar) --- */
+        .changes-sidebar {
+            width: 300px;
+            border-right: 1px solid var(--border-color);
+            background: var(--vscode-sideBar-background);
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+        }
+
+        .commit-meta {
+            padding: 16px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .commit-meta h3 {
+            margin: 0 0 8px 0;
+            font-size: 14px;
+        }
+
+        .commit-meta p {
+            margin: 4px 0;
+            font-size: 12px;
+            color: var(--vscode-descriptionForeground);
+        }
+
+        .file-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+            list-style: none;
+            margin: 0;
+        }
+
+        .file-item {
+            padding: 6px 16px;
+            cursor: pointer;
             display: flex;
             align-items: center;
             gap: 8px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .additions {
-            color: #28a745;
-        }
-
-        .deletions {
-            color: #dc3545;
-        }
-
-        .change-navigation {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-        }
-
-        .nav-dropdown {
-            background: var(--vscode-dropdown-background);
-            border: 1px solid var(--vscode-dropdown-border, var(--vscode-input-border));
-            color: var(--vscode-dropdown-foreground);
-            padding: 6px 12px;
-            border-radius: 4px;
             font-size: 13px;
-            cursor: pointer;
-            min-width: 200px;
-            appearance: none;
-            -webkit-appearance: none;
-            -moz-appearance: none;
-            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6,9 12,15 18,9'%3e%3c/polyline%3e%3c/svg%3e");
-            background-repeat: no-repeat;
-            background-position: right 8px center;
-            background-size: 14px;
-            padding-right: 28px;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
         }
 
-        .nav-dropdown:hover {
-            border-color: var(--vscode-focusBorder, var(--vscode-textLink-foreground));
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+        .file-item:hover {
+            background: var(--hover-bg);
         }
 
-        .nav-dropdown:focus {
-            outline: 1px solid var(--vscode-focusBorder);
-            border-color: var(--vscode-focusBorder);
-            box-shadow: 0 0 0 1px var(--vscode-focusBorder);
+        .file-item.active {
+            background: var(--active-bg);
+            color: var(--active-fg);
+            border-left-color: var(--vscode-progressBar-background);
         }
 
-        .jump-button {
-            background: var(--vscode-button-secondaryBackground);
-            color: var(--vscode-button-secondaryForeground);
-            border: none;
-            padding: 8px 10px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 14px;
-            transition: background-color 0.2s;
-            min-width: 32px;
+        .file-status {
+            font-weight: bold;
+            width: 16px;
+            text-align: center;
         }
 
-        .jump-button:hover {
-            background: var(--vscode-button-secondaryHoverBackground);
+        .status-M { color: var(--vscode-gitDecoration-modifiedResourceForeground); }
+        .status-A { color: var(--vscode-gitDecoration-addedResourceForeground); }
+        .status-D { color: var(--vscode-gitDecoration-deletedResourceForeground); }
+
+        .file-name {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
-        .jump-button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
+        /* --- Layer 3: Diff View (Right Panel) --- */
+        .diff-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-color);
+            min-width: 0; /* Prevent flex overflow */
         }
 
-        .change-block-highlighted {
-            box-shadow: 0 0 0 2px var(--vscode-focusBorder) !important;
-            border-radius: 3px;
+        /* (Reuse existing diff styles but scoped to diff-panel) */
+        .diff-container {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            font-family: 'SF Mono', Monaco, Consolas, monospace;
+            font-size: 12px;
         }
 
-        /* Control Panel Specific Styles */
-        .control-panel-notice {
-            background: var(--vscode-textCodeBlock-background);
-            padding: 12px;
-            border-radius: 6px;
-            margin-top: 15px;
-            border-left: 4px solid var(--vscode-charts-green);
-            color: var(--vscode-foreground);
-            font-size: 14px;
+        .diff-side {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+            border-right: 1px solid var(--border-color);
         }
 
-        .control-panel-notice.no-changes {
-            border-left-color: var(--vscode-charts-green);
-            background: var(--vscode-textCodeBlock-background);
+        .diff-side:last-child {
+            border-right: none;
         }
 
-
-        /* No Changes Styles */
-        .no-changes-stats {
-            background: var(--vscode-textBlockQuote-background);
-            border: 1px solid var(--vscode-textBlockQuote-border);
+        .diff-header-bar {
+            padding: 8px;
+            background: var(--vscode-editor-lineHighlightBackground);
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 500;
+            text-align: center;
+            font-size: 12px;
         }
 
-        .no-changes-info {
-            font-size: 16px;
-            font-weight: 600;
-            color: var(--vscode-foreground);
-            margin-bottom: 8px;
+        .diff-content {
+            flex: 1;
+            overflow: auto;
+            white-space: pre;
+        }
+        
+        .line {
+            display: flex;
+            line-height: 1.5;
+        }
+        
+        .line-number {
+            width: 40px;
+            text-align: right;
+            padding-right: 10px;
+            color: var(--vscode-editorLineNumber-foreground);
+            background: var(--vscode-editorGutter-background);
+            user-select: none;
+            flex-shrink: 0;
         }
 
-        .no-changes-desc {
-            font-size: 14px;
+        .line-code {
+            padding-left: 10px;
+            flex: 1;
+        }
+
+        .line.added { background: rgba(40, 167, 69, 0.2); }
+        .line.removed { background: rgba(220, 53, 69, 0.2); }
+        
+        .empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
             color: var(--vscode-descriptionForeground);
-            line-height: 1.4;
+            text-align: center;
+            padding: 40px;
         }
+
+        .empty-state h3 { margin-bottom: 10px; color: var(--text-color); }
+        
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>🕰️ Code Time Machine ${isControlPanel ? '- Control Panel' : ''}</h1>
-        <div class="function-info">
-            <strong>File:</strong> ${this.escapeHtml(data.filePath.split('/').pop() || 'Unknown')}
-            ${data.similarity !== undefined ? `<br><strong>Similarity:</strong> <span class="similarity-badge">${data.similarity}%</span>` : ''}
+    <!-- Layer 1: Timeline -->
+    <div class="timeline-container">
+        <div class="section-header">
+            <span>Commit Timeline</span>
+            <span>Total: ${data.commits.length}</span>
         </div>
-        ${isControlPanel ? `
-        <div class="control-panel-notice ${data.hasChanges === false ? 'no-changes' : ''}">
-            ${data.hasChanges === false
-            ? (data.noChangesReason === 'not-found'
-                ? '❌ Selected code did not exist in this commit'
-                : '✅ Selected code is identical - no changes found')
-            : '🔄 Side-by-side diff is now open showing ONLY your selected code changes (not entire file)!'}
-        </div>
-        ` : ''}
-    </div>
-
-    ${data.commits.length > 0 ? `
-    <div class="commit-navigation">
-        <button class="nav-button" onclick="navigateToCommit(${Math.max(0, data.currentCommitIndex - 1)})" 
-                ${data.currentCommitIndex === 0 ? 'disabled' : ''}>
-            ← Previous Commit
-        </button>
-        
-        <div class="commit-info">
-            <div class="commit-hash">${data.commits[data.currentCommitIndex]?.hash.substring(0, 8) || 'Unknown'}</div>
-            <div style="font-size: 12px; color: var(--vscode-descriptionForeground); margin-top: 4px;">
-                ${this.escapeHtml(data.commits[data.currentCommitIndex]?.message || 'No message')} 
-                • ${this.escapeHtml(data.commits[data.currentCommitIndex]?.author || 'Unknown author')}
-                • ${data.commits[data.currentCommitIndex]?.date ? new Date(data.commits[data.currentCommitIndex].date).toLocaleDateString() : 'Unknown date'}
-            </div>
-        </div>
-        
-        <button class="nav-button" onclick="navigateToCommit(${Math.min(data.commits.length - 1, data.currentCommitIndex + 1)})"
-                ${data.currentCommitIndex >= data.commits.length - 1 ? 'disabled' : ''}>
-            Next Commit →
-        </button>
-    </div>
-
-    <div class="commit-selector">
-        <div class="selector-header">📅 Select Commit to Compare</div>
-        <select class="commit-dropdown" onchange="navigateToCommit(this.value)">
+        <div class="timeline-scroll-area" id="timeline">
             ${data.commits.map((commit, index) => `
-                <option value="${index}" ${index === data.currentCommitIndex ? 'selected' : ''}>
-                    ${commit.hash.substring(0, 8)} • ${this.escapeHtml(commit.message)} • ${this.escapeHtml(commit.author)} • ${new Date(commit.date).toLocaleDateString()}
-                </option>
+                <div class="timeline-node ${index === data.currentCommitIndex ? 'active' : ''}" 
+                     onclick="selectCommit(${index})"
+                     title="${this.escapeHtml(commit.message)}">
+                    <div class="timeline-dot"></div>
+                    <div class="timeline-line"></div>
+                    <div class="timeline-date">${new Date(commit.date).toLocaleDateString()}</div>
+                    <div class="timeline-message">${commit.hash.substring(0, 7)}</div>
+                </div>
             `).join('')}
-        </select>
-    </div>
-    ` : ''}
-
-    ${data.hasChanges === false ? `
-    <div class="change-stats no-changes-stats">
-        <div class="change-summary">
-            <div class="no-changes-info">
-                ${data.noChangesReason === 'not-found'
-            ? '📋 Code did not exist in this commit'
-            : '🔍 Code is identical (100% similarity)'}
-            </div>
-            ${data.noChangesReason === 'not-found'
-            ? '<div class="no-changes-desc">This code was likely added after this commit or moved to a different location.</div>'
-            : '<div class="no-changes-desc">The selected code exists but has no differences compared to the current version.</div>'}
         </div>
     </div>
-    ` : (data.changeStats && data.changeStats.totalChanges > 0 ? `
-    <div class="change-stats">
-        <div class="change-summary">
-            <div class="change-count">
-                <span class="additions">+${data.changeStats.additions}</span>
-                <span class="deletions">-${data.changeStats.deletions}</span>
-                <span>(${data.changeStats.totalChanges} total changes)</span>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Layer 2: Changes Sidebar -->
+        <div class="changes-sidebar">
+            <div class="section-header">Event Details</div>
+            
+            <div class="commit-meta">
+                <h3>${this.escapeHtml(data.commits[data.currentCommitIndex]?.message || 'No Commit Selected')}</h3>
+                <p><strong>Author:</strong> ${this.escapeHtml(data.commits[data.currentCommitIndex]?.author || '')}</p>
+                <p><strong>Date:</strong> ${new Date(data.commits[data.currentCommitIndex]?.date || Date.now()).toLocaleString()}</p>
+                <p><strong>Hash:</strong> ${data.commits[data.currentCommitIndex]?.hash.substring(0, 8) || ''}</p>
             </div>
+
+            <div class="section-header" style="background: transparent; border-top: 1px solid var(--border-color); margin-top: 0;">
+                Changes
+            </div>
+
+            <ul class="file-list" id="fileList">
+                <!-- File list will be populated here via JS or Initial Data -->
+                ${data.changeStats?.changeBlocks?.map(block => `
+                    <!-- This part needs to be dynamic based on 'Initial Details' which we might not have fully mapped yet. 
+                         For now, we'll use a placeholder or assume the backend sends a list of changed files. -->
+                `).join('') || '<li style="padding: 16px; color: var(--vscode-descriptionForeground);">Select a commit to view changes.</li>'}
+            </ul>
+        </div>
+
+        <!-- Layer 3: Diff Panel -->
+        <div class="diff-panel">
+            ${data.diffHtml ? data.diffHtml : `
+                <div class="empty-state">
+                    <h3>No File Selected</h3>
+                    <p>Select a file from the list on the left to view the changes in this commit.</p>
+                </div>
+            `}
         </div>
     </div>
-    ` : '')}
-
-    ${!isControlPanel ? (data.currentFunction || data.historicalFunction ?
-            data.diffHtml :
-            '<div class="no-function-message">No function found in the selected code or historical versions.</div>') : ''}
 
     <script>
         const vscode = acquireVsCodeApi();
+        const commitsData = ${JSON.stringify(data.commits)};
 
-
-        function navigateToCommit(commitIndex) {
-            // Convert string to number if needed (from dropdown)
-            const index = typeof commitIndex === 'string' ? parseInt(commitIndex) : commitIndex;
-            
+        // --- Layer 1 Interaction ---
+        function selectCommit(index) {
+            const commit = commitsData[index];
             vscode.postMessage({
                 command: 'navigateToCommit',
-                commitIndex: index
+                commitIndex: index,
+                hash: commit.hash
+            });
+            
+            // Optimistic UI update
+            document.querySelectorAll('.timeline-node').forEach((el, i) => {
+                if (i === index) el.classList.add('active');
+                else el.classList.remove('active');
+            });
+            
+            // Scroll into view
+            const node = document.querySelectorAll('.timeline-node')[index];
+            if (node) {
+                node.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+            }
+        }
+
+        // --- Layer 2 Interaction ---
+        function selectFile(filePath, status, hash) {
+            // Highlight selected
+            document.querySelectorAll('.file-item').forEach(el => el.classList.remove('active'));
+            const element = document.getElementById('file-' + filePath.replace(/[^a-zA-Z0-9]/g, '_'));
+            if (element) element.classList.add('active');
+
+            vscode.postMessage({
+                command: 'selectFile',
+                filePath: filePath,
+                status: status,
+                hash: hash
             });
         }
 
-        function showCommitDetails() {
-            const currentCommit = ${JSON.stringify(data.commits[data.currentCommitIndex] || null)};
-            if (currentCommit) {
-                vscode.postMessage({
-                    command: 'showCommitDetails',
-                    commit: currentCommit
-                });
+        // --- Message Handling ---
+        window.addEventListener('message', event => {
+            const message = event.data;
+            switch (message.command) {
+                case 'setCommitDetails':
+                    updateCommitDetails(message.details);
+                    break;
+                case 'updateDiff':
+                    const diffPanel = document.querySelector('.diff-panel');
+                    if (diffPanel) {
+                        diffPanel.innerHTML = message.diffHtml;
+                    }
+                    break;
             }
-        }
-
-
-
-        // Synchronized scrolling between diff panels
-        function setupSynchronizedScrolling() {
-            const leftPanel = document.querySelector('.diff-content.old-content');
-            const rightPanel = document.querySelector('.diff-content.new-content');
-            
-            if (!leftPanel || !rightPanel) return;
-            
-            let isScrolling = false;
-            
-            function syncScroll(source, target) {
-                if (isScrolling) return;
-                isScrolling = true;
-                
-                const sourceScrollTop = source.scrollTop;
-                const sourceScrollLeft = source.scrollLeft;
-                
-                target.scrollTop = sourceScrollTop;
-                target.scrollLeft = sourceScrollLeft;
-                
-                setTimeout(() => {
-                    isScrolling = false;
-                }, 50);
+        });
+        
+        function updateCommitDetails(details) {
+            // Update Meta Header
+            const metaContainer = document.querySelector('.commit-meta');
+            if (metaContainer) {
+                metaContainer.innerHTML = \`
+                    <h3>\${escapeHtml(details.message)}</h3>
+                    <p><strong>Author:</strong> \${escapeHtml(details.author)}</p>
+                    <p><strong>Date:</strong> \${new Date(details.date).toLocaleString()}</p>
+                    <p><strong>Hash:</strong> \${details.hash.substring(0, 8)}</p>
+                \`;
             }
-            
-            leftPanel.addEventListener('scroll', () => syncScroll(leftPanel, rightPanel));
-            rightPanel.addEventListener('scroll', () => syncScroll(rightPanel, leftPanel));
+
+            // Update File List
+            const fileList = document.querySelector('.file-list');
+            if (fileList) {
+                if (details.files && details.files.length > 0) {
+                    fileList.innerHTML = details.files.map(file => \`
+                        <li class="file-item" 
+                            id="file-\${file.path.replace(/[^a-zA-Z0-9]/g, '_')}"
+                            onclick="selectFile('\${escapeHtml(file.path)}', '\${file.status}', '\${details.hash}')">
+                            <span class="file-status status-\${file.status}">\${file.status}</span>
+                            <span class="file-name" title="\${escapeHtml(file.path)}">\${escapeHtml(file.path)}</span>
+                        </li>
+                    \`).join('');
+                } else {
+                    fileList.innerHTML = '<li style="padding: 16px; color: var(--vscode-descriptionForeground);">No files changed in this commit.</li>';
+                }
+            }
         }
         
-        // Initialize synchronized scrolling
-        function initializePage() {
-            setupSynchronizedScrolling();
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
         }
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', initializePage);
-        } else {
-            initializePage();
+        
+        // Auto-scroll timeline to active on load
+        const activeNode = document.querySelector('.timeline-node.active');
+        if (activeNode) {
+            activeNode.scrollIntoView({ behavior: 'smooth', inline: 'center' });
         }
-
-        // Change navigation functionality
-        let currentChangeIndex = -1;
-        const changeBlocks = ${JSON.stringify(data.changeStats?.changeBlocks || [])};
-
-        function jumpToChange() {
-            const select = document.getElementById('changeSelect');
-            const changeId = select.value;
-            if (!changeId) return;
-
-            // Validate changeId is from our known blocks to prevent XSS
-            const validChangeIds = changeBlocks.map(block => block.id);
-            if (!validChangeIds.includes(changeId)) return;
-
-            currentChangeIndex = changeBlocks.findIndex(block => block.id === changeId);
-            scrollToChange(changeId);
-            select.value = ''; // Reset dropdown
-        }
-
-        function jumpToNextChange() {
-            if (changeBlocks.length === 0) return;
-            currentChangeIndex = (currentChangeIndex + 1) % changeBlocks.length;
-            const changeId = changeBlocks[currentChangeIndex].id;
-            scrollToChange(changeId);
-        }
-
-        function jumpToPrevChange() {
-            if (changeBlocks.length === 0) return;
-            currentChangeIndex = currentChangeIndex <= 0 ? changeBlocks.length - 1 : currentChangeIndex - 1;
-            const changeId = changeBlocks[currentChangeIndex].id;
-            scrollToChange(changeId);
-        }
-
-        function scrollToChange(changeId) {
-            // Clear previous highlights
-            document.querySelectorAll('.change-block-highlighted').forEach(el => {
-                el.classList.remove('change-block-highlighted');
-            });
-
-            // Find and highlight the change block
-            const changeElement = document.getElementById(changeId);
-            if (changeElement) {
-                changeElement.classList.add('change-block-highlighted');
-                
-                // Scroll to the change with some offset
-                const container = changeElement.closest('.diff-content');
-                if (container) {
-                    const elementTop = changeElement.offsetTop;
-                    const containerHeight = container.clientHeight;
-                    const scrollTop = Math.max(0, elementTop - containerHeight / 3);
-                    
-                    container.scrollTo({
-                        top: scrollTop,
-                        behavior: 'smooth'
-                    });
-                }
-
-                // Remove highlight after 3 seconds
-                setTimeout(() => {
-                    changeElement.classList.remove('change-block-highlighted');
-                }, 3000);
-            }
-        }
-
-        // Keyboard navigation for commits only
+        
+        // --- Keyboard Navigation ---
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft' && ${data.currentCommitIndex} > 0) {
-                navigateToCommit(${data.currentCommitIndex - 1});
-            } else if (e.key === 'ArrowRight' && ${data.currentCommitIndex} < ${data.commits.length - 1}) {
-                navigateToCommit(${data.currentCommitIndex + 1});
+             const currentIndex = ${data.currentCommitIndex};
+             const total = ${data.commits.length};
+             
+            if (e.key === 'ArrowLeft') {
+                if (currentIndex > 0) selectCommit(currentIndex - 1);
+            } else if (e.key === 'ArrowRight') {
+                if (currentIndex < total - 1) selectCommit(currentIndex + 1);
             }
         });
     </script>
