@@ -63,7 +63,7 @@ class CommitDetailsPanel {
                     vscode.commands.executeCommand('codeTimeMachine.copyHash', message.hash);
                     return;
                 case 'compareFile':
-                    vscode.commands.executeCommand('codeTimeMachine.compareFile', message.hash);
+                    vscode.commands.executeCommand('codeTimeMachine.compareFile', message.hash, message.path);
                     return;
                 case 'checkoutCommit':
                     vscode.commands.executeCommand('codeTimeMachine.checkoutCommit', message.hash);
@@ -191,6 +191,7 @@ class CommitDetailsPanel {
                     <span class="file-icon">${fileIcon}</span>
                     <span class="file-name">${node.name}</span>
                     <span class="status-badge ${statusClass}">${statusIcon} ${node.status === 'A' ? 'Added' : node.status === 'D' ? 'Deleted' : 'Modified'}</span>
+                    <button class="action-btn file-action-btn" title="Compare with another commit" onclick="event.stopPropagation(); compareFile('${details.hash}', '${safePath}')">⚖️</button>
                 </li>`;
             }
             else {
@@ -463,6 +464,23 @@ class CommitDetailsPanel {
                 }
                 button.danger:hover { opacity: 0.9; }
 
+                button.danger:hover { opacity: 0.9; }
+
+                .file-action-btn {
+                    padding: 2px 6px;
+                    margin-left: auto;
+                    font-size: 0.8rem;
+                    opacity: 0.6;
+                    background: transparent;
+                    color: var(--text-color);
+                    box-shadow: none;
+                }
+                .file-action-btn:hover {
+                     opacity: 1;
+                     background: var(--vscode-list-hoverBackground);
+                     transform: scale(1.1);
+                }
+
             </style>
         </head>
         <body>
@@ -511,8 +529,8 @@ class CommitDetailsPanel {
                      vscode.postMessage({ command: 'browseCommit', hash: hash });
                 }
 
-                function compareFile(hash) {
-                    vscode.postMessage({ command: 'compareFile', hash: hash });
+                function compareFile(hash, path) {
+                    vscode.postMessage({ command: 'compareFile', hash: hash, path: path });
                 }
 
                 function copyHash(hash) {

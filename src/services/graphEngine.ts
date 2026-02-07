@@ -5,6 +5,7 @@ export interface GraphNode extends GitGraphNode {
     y: number;
     lane: number;
     color: string;
+    type: 'initial' | 'merge' | 'branch' | 'tag' | 'fix' | 'feat' | 'normal' | 'add' | 'delete' | 'modify';
 }
 
 export interface GraphLink {
@@ -48,12 +49,36 @@ export class GraphEngine {
 
         // Y position is simply the index (chronological)
         commits.forEach((commit, index) => {
+            // Determine Node Type
+            let type: GraphNode['type'] = 'normal';
+            const lowerMsg = (commit.message || '').toLowerCase();
+            const refs = (commit.branch || '').toLowerCase(); // branch property holds refs string usually
+
+            if (commit.parents.length === 0) {
+                type = 'initial';
+            } else if (commit.parents.length > 1) {
+                type = 'merge';
+            } else if (refs.includes('tag:')) {
+                type = 'tag';
+            } else if (refs.includes('head') || refs.length > 0) { // If it has a branch name, it's a tip
+                // But wait, many commits might be on a branch. 
+                // We want "Branch Tip" specifically?
+                // Usually simple-git refs only show up on the tip capable commits.
+                // Let's assume if it has a ref (branch name), it is a tip of that ref.
+                type = 'branch';
+            } else if (lowerMsg.includes('fix') || lowerMsg.includes('bug') || lowerMsg.includes('issue')) {
+                type = 'fix';
+            } else if (lowerMsg.includes('feat') || lowerMsg.includes('add') || lowerMsg.includes('new')) {
+                type = 'feat';
+            }
+
             const node: GraphNode = {
                 ...commit,
                 x: 0,
                 y: index * 80 + 30, // 80px vertical spacing for multiline messages
                 lane: 0,
-                color: ''
+                color: '',
+                type: type
             };
             commitMap.set(commit.hash, node);
             nodes.push(node);
@@ -171,7 +196,7 @@ export class GraphEngine {
         return {
             nodes,
             links,
-            height: nodes.length * 80 + 100,
+            height: nodes.length * 80 + 200, // Increased buffer at bottom
             width: (maxLaneIndex + 1) * 50 + 400 // Dynamic width based on lanes used + space for messages
         };
     }
