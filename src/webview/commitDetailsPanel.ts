@@ -49,22 +49,19 @@ export class CommitDetailsPanel {
             message => {
                 switch (message.command) {
                     case 'browseCommit':
-                        vscode.commands.executeCommand('codeTimeMachine.browseCommit', message.hash);
+                        vscode.commands.executeCommand('GitRewind.browseCommit', message.hash);
                         return;
                     case 'openFile':
-                        vscode.commands.executeCommand('codeTimeMachine.openFileAtCommit', message.hash, message.path);
+                        vscode.commands.executeCommand('GitRewind.openFileAtCommit', message.hash, message.path);
                         return;
                     case 'copyHash':
-                        vscode.commands.executeCommand('codeTimeMachine.copyHash', message.hash);
-                        return;
-                    case 'compareFile':
-                        vscode.commands.executeCommand('codeTimeMachine.compareFile', message.hash);
+                        vscode.commands.executeCommand('GitRewind.copyHash', message.hash);
                         return;
                     case 'checkoutCommit':
-                        vscode.commands.executeCommand('codeTimeMachine.checkoutCommit', message.hash);
+                        vscode.commands.executeCommand('GitRewind.checkoutCommit', message.hash);
                         return;
                     case 'revertCommit':
-                        vscode.commands.executeCommand('codeTimeMachine.revertCommit', message.hash);
+                        vscode.commands.executeCommand('GitRewind.revertCommit', message.hash);
                         return;
                 }
             },

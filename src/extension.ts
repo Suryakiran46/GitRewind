@@ -1,22 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { GitUtils, createGitUtils, CommitInfo } from './gitUtils';
-import { CodeParser, FunctionInfo } from './parser';
-import { DiffUtils, ChangeStats } from './diffUtils';
-import { CodeTimeMachinePanel, WebviewData } from './webview/panel';
 import { GitService } from './services/gitService';
+import { CommitInfo } from './services/types';
+import { GitRewindPanel, WebviewData } from './webview/panel';
 import { TimelinePanel } from './webview/timelinePanel';
 import { CommitDetailsPanel } from './webview/commitDetailsPanel';
 import { GitFileSystemProvider } from './services/gitFileSystemProvider';
 import { GraphEngine } from './services/graphEngine';
-import { ScopeResolver } from './services/scopeResolver';
-
-// ... (Existing interfaces can stay or be refactored, keeping simple for now)
-interface LegacyState {
-  // ... keep existing state interface for backward compatibility if needed
-  gitUtils: GitUtils;
-  // ...
-}
+import { DiffUtils } from './diffUtils';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('GitRewind extension is now active!');
@@ -29,7 +20,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   // --- Main Command: Show Repository Graph ---
   // Always opens the Repo Timeline, independent of active file selection (as requested).
-  let disposable = vscode.commands.registerCommand('codeTimeMachine.showHistory', async () => {
+  let disposable = vscode.commands.registerCommand('GitRewind.showHistory', async () => {
     // We prioritize the workspace root, as this is a repo-level view.
     const workspaceFolders = vscode.workspace.workspaceFolders;
     let targetPath = '';
@@ -54,11 +45,11 @@ export function activate(context: vscode.ExtensionContext) {
   });
 
   // --- Internal commands for the webview interactions ---
-  let detailsDisposable = vscode.commands.registerCommand('codeTimeMachine.showCommitDetails', async (hash: string) => {
+  let detailsDisposable = vscode.commands.registerCommand('GitRewind.showCommitDetails', async (hash: string) => {
     await showCommitDetails(context, hash);
   });
 
-  let browseDisposable = vscode.commands.registerCommand('codeTimeMachine.browseCommit', async (hash: string) => {
+  let browseDisposable = vscode.commands.registerCommand('GitRewind.browseCommit', async (hash: string) => {
     // ... existing browse logic
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     // Fallback if needed, though workspaceRoot should exist if we are here
@@ -92,7 +83,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  let openFileDisposable = vscode.commands.registerCommand('codeTimeMachine.openFileAtCommit', async (hash: string, filePath: string, status: string = 'M') => {
+  let openFileDisposable = vscode.commands.registerCommand('GitRewind.openFileAtCommit', async (hash: string, filePath: string, status: string = 'M') => {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     if (!workspaceRoot) return; // Should ideally find root from file path too
 
@@ -136,7 +127,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  let revertDisposable = vscode.commands.registerCommand('codeTimeMachine.revertCommit', async (hash: string) => {
+  let revertDisposable = vscode.commands.registerCommand('GitRewind.revertCommit', async (hash: string) => {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     if (!workspaceRoot) return;
     const gitService = await GitService.create(workspaceRoot);
@@ -150,7 +141,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  let checkoutDisposable = vscode.commands.registerCommand('codeTimeMachine.checkoutCommit', async (hash: string) => {
+  let checkoutDisposable = vscode.commands.registerCommand('GitRewind.checkoutCommit', async (hash: string) => {
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     if (!workspaceRoot) return;
     const gitService = await GitService.create(workspaceRoot);
@@ -164,25 +155,25 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  let copyHashDisposable = vscode.commands.registerCommand('codeTimeMachine.copyHash', async (hash: string) => {
+  let copyHashDisposable = vscode.commands.registerCommand('GitRewind.copyHash', async (hash: string) => {
     await vscode.env.clipboard.writeText(hash);
     vscode.window.showInformationMessage(`Copied hash ${hash.substring(0, 7)} to clipboard`);
   });
 
-  let navigateDisposable = vscode.commands.registerCommand('codeTimeMachine.navigateToCommit', async (hash: string) => {
+  let navigateDisposable = vscode.commands.registerCommand('GitRewind.navigateToCommit', async (hash: string) => {
     const editor = vscode.window.activeTextEditor;
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     const targetPath = editor?.document.uri.fsPath || workspaceRoot;
 
     if (!targetPath) return;
 
-    const gitUtils = await createGitUtils(targetPath);
-    if (!gitUtils) return;
+    const gitService = await GitService.create(targetPath);
+    if (!gitService) return;
 
     try {
-      const details = await gitUtils.getCommitDetails(hash);
-      if (details && CodeTimeMachinePanel.currentPanel) {
-        CodeTimeMachinePanel.currentPanel.handleExternalMessage({
+      const details = await gitService.getCommitDetails(hash);
+      if (details && GitRewindPanel.currentPanel) {
+        GitRewindPanel.currentPanel.handleExternalMessage({
           command: 'setCommitDetails',
           details: details
         });
@@ -192,14 +183,14 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  let selectFileDisposable = vscode.commands.registerCommand('codeTimeMachine.selectFile', async (hash: string, filePath: string, status: string) => {
+  let selectFileDisposable = vscode.commands.registerCommand('GitRewind.selectFile', async (hash: string, filePath: string, status: string) => {
     const editor = vscode.window.activeTextEditor;
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
     const targetPath = editor?.document.uri.fsPath || workspaceRoot;
     if (!targetPath) return;
 
-    const gitUtils = await createGitUtils(targetPath);
-    if (!gitUtils) return;
+    const gitService = await GitService.create(targetPath);
+    if (!gitService) return;
 
     try {
       let leftContent = '';
@@ -208,13 +199,13 @@ export function activate(context: vscode.ExtensionContext) {
       let rightTitle = 'Current';
 
       if (status === 'A') {
-        rightContent = await gitUtils.getFileAtCommit(filePath, hash) || '';
+        rightContent = await gitService.getFileAtCommit(filePath, hash) || '';
         leftTitle = 'Non-existent';
         rightTitle = `Added in ${hash.substring(0, 7)}`;
       } else if (status === 'D') {
-        const details = await gitUtils.getCommitDetails(hash);
+        const details = await gitService.getCommitDetails(hash);
         if (details && details.parents && details.parents.length > 0) {
-          leftContent = await gitUtils.getFileAtCommit(filePath, details.parents[0]) || '';
+          leftContent = await gitService.getFileAtCommit(filePath, details.parents[0]) || '';
           leftTitle = `Commit ${details.parents[0].substring(0, 7)}`;
         } else {
           leftTitle = 'Unknown Parent';
@@ -222,11 +213,11 @@ export function activate(context: vscode.ExtensionContext) {
         rightTitle = 'Deleted';
       } else {
         // Modified
-        rightContent = await gitUtils.getFileAtCommit(filePath, hash) || '';
+        rightContent = await gitService.getFileAtCommit(filePath, hash) || '';
 
-        const details = await gitUtils.getCommitDetails(hash);
+        const details = await gitService.getCommitDetails(hash);
         if (details && details.parents && details.parents.length > 0) {
-          leftContent = await gitUtils.getFileAtCommit(filePath, details.parents[0]) || '';
+          leftContent = await gitService.getFileAtCommit(filePath, details.parents[0]) || '';
           leftTitle = `Commit ${details.parents[0].substring(0, 7)}`;
         } else {
           leftTitle = 'Initial Commit';
@@ -236,8 +227,8 @@ export function activate(context: vscode.ExtensionContext) {
 
       const diffHtml = DiffUtils.generateSideBySideHtml(leftContent, rightContent, leftTitle, rightTitle, filePath);
 
-      if (CodeTimeMachinePanel.currentPanel) {
-        CodeTimeMachinePanel.currentPanel.handleExternalMessage({
+      if (GitRewindPanel.currentPanel) {
+        GitRewindPanel.currentPanel.handleExternalMessage({
           command: 'updateDiff',
           diffHtml: diffHtml
         });
@@ -247,125 +238,10 @@ export function activate(context: vscode.ExtensionContext) {
     }
   });
 
-  // Compare File Command
-  let compareFileDisposable = vscode.commands.registerCommand('codeTimeMachine.compareFile', async (hash: string) => {
-    const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-    if (!workspaceRoot) return;
-    const gitService = await GitService.create(workspaceRoot);
-    if (!gitService) return;
-
-    try {
-      // Step 1: Select File
-      const changedFiles = await gitService.getChangedFiles(hash);
-      const fileItems = changedFiles.map(f => ({ label: f.path, description: f.status }));
-
-      const selectedFile = await vscode.window.showQuickPick(fileItems, {
-        placeHolder: 'Select a file to compare'
-      });
-
-      if (!selectedFile) return;
-
-      // Step 2: Select Commit to Compare Against
-      // We'll show the last 50 commits to pick from
-      const commits = await gitService.getCommitGraph(50);
-      const commitItems = commits.map(c => ({
-        label: c.message,
-        description: c.hash.substring(0, 7),
-        detail: c.date,
-        hash: c.hash
-      }));
-
-      const selectedCommit = await vscode.window.showQuickPick(commitItems, {
-        placeHolder: `Compare ${path.basename(selectedFile.label)} with version in...`
-      });
-
-      if (!selectedCommit) return;
-
-      // Step 3: Open Diff
-      // URI: gitrewind-remote://<hash>/path
-      const leftUri = vscode.Uri.from({
-        scheme: GitFileSystemProvider.scheme,
-        authority: selectedCommit.hash,
-        path: '/' + selectedFile.label,
-        query: workspaceRoot
-      });
-      const rightUri = vscode.Uri.from({
-        scheme: GitFileSystemProvider.scheme,
-        authority: hash,
-        path: '/' + selectedFile.label,
-        query: workspaceRoot
-      });
-
-      const title = `${path.basename(selectedFile.label)}: ${selectedCommit.description} ↔ ${hash.substring(0, 7)}`;
-
-      await vscode.commands.executeCommand('vscode.diff', leftUri, rightUri, title);
-
-    } catch (e) {
-      vscode.window.showErrorMessage(`Comparison failed: ${e}`);
-    }
-  });
-
-  context.subscriptions.push(disposable, detailsDisposable, browseDisposable, openFileDisposable, revertDisposable, checkoutDisposable, copyHashDisposable, navigateDisposable, selectFileDisposable, compareFileDisposable);
+  context.subscriptions.push(disposable, detailsDisposable, browseDisposable, openFileDisposable, revertDisposable, checkoutDisposable, copyHashDisposable, navigateDisposable, selectFileDisposable);
 }
 
 // --- Helper Functions ---
-
-async function showFileHistory(context: vscode.ExtensionContext, editor: vscode.TextEditor) {
-  const filePath = editor.document.uri.fsPath;
-  const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-  const targetPath = workspaceRoot || filePath;
-
-  if (!targetPath) return;
-
-  const gitUtils = await createGitUtils(filePath);
-  if (!gitUtils) {
-    vscode.window.showErrorMessage("Git repository not found.");
-    return;
-  }
-
-  await vscode.window.withProgress({
-    location: vscode.ProgressLocation.Notification,
-    title: "Loading File History...",
-    cancellable: false
-  }, async (progress) => {
-    try {
-      // 1. Fetch File History (Flat List)
-      // We use the simpler method for single-file history
-      const commits = await gitUtils.getFileHistory(filePath, 50);
-
-      // 2. Fetch Initial Details for the latest commit (if any)
-      let initialDetails: any = null;
-      let diffHtml = '';
-
-      if (commits.length > 0) {
-        const head = commits[0]; // Latest commit
-
-        // Prepare initial view: show diff of this file in the latest commit
-        // vs its parent.
-        const fileDiff = await gitUtils.getDiff(filePath, head.hash + '~1', head.hash);
-        // Note: This simple diff might fail for initial commits.
-
-        // For the File History Panel, we just need basic info first.
-      }
-
-      // 3. Open Panel
-      CodeTimeMachinePanel.createOrShow(context.extensionUri, {
-        commits: commits, // Pass the flat list of commits
-        currentCommitIndex: 0,
-        functionName: '',
-        currentFunction: null,
-        historicalFunction: null,
-        diffHtml: '', // Initially empty, user selects to view
-        filePath: filePath,
-        similarity: 0,
-        changeStats: undefined
-      });
-
-    } catch (e) {
-      vscode.window.showErrorMessage("Failed to load history: " + e);
-    }
-  });
-}
 
 async function showRepoTimeline(context: vscode.ExtensionContext, targetPath: string) {
   // Use GitService to find root (it handles finding root from a subfolder path)

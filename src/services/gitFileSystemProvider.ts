@@ -58,9 +58,9 @@ export class GitFileSystemProvider implements vscode.FileSystemProvider {
         }
 
         try {
-            const buffer = await gitService.getFileBufferAtCommit(filePath, hash);
-            if (buffer) {
-                return new Uint8Array(buffer);
+            const content = await gitService.getFileAtCommit(filePath, hash);
+            if (content) {
+                return new Uint8Array(Buffer.from(content, 'utf-8'));
             } else {
                 return new Uint8Array(0);
             }
