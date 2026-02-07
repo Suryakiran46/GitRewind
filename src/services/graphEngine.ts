@@ -29,7 +29,7 @@ export class GraphEngine {
         '#00a8e8', // Cyan
         '#f25f5c', // Red
         '#ffe066', // Yellow
-        '#247ba0', // Blue
+        '#7c3aed', // Violet
         '#70c1b3', // Green
         '#b2dbbf'  // Light Green
     ];
