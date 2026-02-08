@@ -8,6 +8,7 @@ import { CommitDetailsPanel } from './webview/commitDetailsPanel';
 import { GitFileSystemProvider } from './services/gitFileSystemProvider';
 import { GraphEngine } from './services/graphEngine';
 import { DiffUtils } from './diffUtils';
+import { FileTreeProvider } from './treeview/fileTreeProvider';
 
 // Sidebar View Provider for GitRewind Graph
 class GitRewindGraphViewProvider implements vscode.WebviewViewProvider {
@@ -157,6 +158,15 @@ export function activate(context: vscode.ExtensionContext) {
       { webviewOptions: { retainContextWhenHidden: true } }
     )
   );
+
+  // Register File Explorer Provider
+  const workspaceRoot = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0
+    ? vscode.workspace.workspaceFolders[0].uri.fsPath
+    : undefined;
+
+  const fileTreeProvider = new FileTreeProvider(workspaceRoot);
+  vscode.window.registerTreeDataProvider('gitrewind-file-explorer', fileTreeProvider);
+
 
   // --- Pagination State ---
   let currentRepoPath = '';
@@ -507,7 +517,13 @@ export function activate(context: vscode.ExtensionContext) {
     await vscode.commands.executeCommand('vscode.diff', sourceUri, targetUri, compareTitle);
   });
 
-  context.subscriptions.push(disposable, detailsDisposable, browseDisposable, openFileDisposable, revertDisposable, checkoutDisposable, copyHashDisposable, navigateDisposable, selectFileDisposable, compareFileDisposable, compareWithSelectedDisposable, loadMoreDisposable);
+  // --- Open File Timeline Command ---
+  let openFileTimelineDisposable = vscode.commands.registerCommand('gitrewind.openFileTimeline', async (filePath: string) => {
+    if (!filePath) return;
+    await showFileTimeline(context, filePath);
+  });
+
+  context.subscriptions.push(disposable, detailsDisposable, browseDisposable, openFileDisposable, revertDisposable, checkoutDisposable, copyHashDisposable, navigateDisposable, selectFileDisposable, compareFileDisposable, compareWithSelectedDisposable, loadMoreDisposable, openFileTimelineDisposable);
 }
 
 // --- Helper Functions ---
@@ -651,6 +667,57 @@ async function showCommitDetails(context: vscode.ExtensionContext, hash: string)
   } catch (e) {
     vscode.window.showErrorMessage("Error loading details: " + e);
   }
+}
+
+async function showFileTimeline(context: vscode.ExtensionContext, filePath: string) {
+  const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+  if (!workspaceRoot) return;
+
+  const gitService = await GitService.create(workspaceRoot); // Create service at root to handle relative paths correctly
+  if (!gitService) {
+    vscode.window.showErrorMessage("Git repository not found.");
+    return;
+  }
+
+  await vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: `Loading Timeline for ${path.basename(filePath)}...`,
+    cancellable: false
+  }, async () => {
+    try {
+      // 1. Fetch File History
+      // We fetch a reasonable limit for file history
+      const limit = 100;
+      console.log(`[GitRewind] Fetching file history for ${filePath} with limit ${limit + 1}`);
+      const commits = await gitService.getFileHistory(filePath, limit + 1);
+      console.log(`[GitRewind] Fetched ${commits.length} commits`);
+
+      let hasMore = false;
+      if (commits.length > limit) {
+        hasMore = true;
+        commits.pop(); // Remove the extra one
+      }
+      console.log(`[GitRewind] hasMore: ${hasMore}`);
+
+      // 2. Process into Graph Data
+      // We need to cast CommitInfo[] to GitGraphNode[]
+      // GraphEngine mainly needs hash, parents, date/timestamp.
+      const graphNodes = commits.map(c => ({
+        ...c,
+        files: [], // File history doesn't usually carry full file lists per commit unless requested
+        branch: undefined
+      })) as any as import('./services/types').GitGraphNode[];
+
+      const graphEngine = new GraphEngine();
+      const graphData = graphEngine.processLinear(graphNodes, hasMore);
+
+      // 3. Open Timeline Panel (File Mode)
+      TimelinePanel.createOrShowFile(context.extensionUri, graphData, filePath);
+
+    } catch (e) {
+      vscode.window.showErrorMessage("Failed to load file timeline: " + e);
+    }
+  });
 }
 
 export function deactivate() {

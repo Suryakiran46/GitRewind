@@ -44,6 +44,10 @@
           "id": "gitrewind-graph-view",
           "name": "Repository Graph",
           "type": "webview"
+        },
+        {
+          "id": "gitrewind-file-explorer",
+          "name": "File Explorer"
         }
       ]
     },

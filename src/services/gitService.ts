@@ -137,6 +137,9 @@ export class GitService {
     /**
      * Get history for a specific file (File Scope)
      */
+    /**
+     * Get history for a specific file (File Scope) including status (A, M, D).
+     */
     async getFileHistory(filePath: string, limit: number = 20): Promise<CommitInfo[]> {
         let relativePath = filePath;
         if (path.isAbsolute(filePath)) {
@@ -145,29 +148,67 @@ export class GitService {
         const normalizedPath = relativePath.split(path.sep).join('/');
 
         try {
-            const log = await this.git.log({
-                file: normalizedPath,
-                maxCount: limit,
-                format: {
-                    hash: '%H',
-                    parents: '%P',
-                    author: '%an',
-                    email: '%ae',
-                    date: '%ad',
-                    message: '%s',
-                    timestamp: '%at'
-                }
-            } as any);
+            // using raw log to get name-status
+            const separator = '::::';
+            const format = `%H${separator}%P${separator}%an${separator}%ae${separator}%ad${separator}%s${separator}%at`;
 
-            return log.all.map((commit: any) => ({
-                hash: commit.hash,
-                parents: commit.parents ? commit.parents.split(' ') : [],
-                author: commit.author,
-                email: commit.email,
-                date: commit.date,
-                message: commit.message,
-                timestamp: parseInt(commit.timestamp, 10)
-            }));
+            const raw = await this.git.raw([
+                'log',
+                `--max-count=${limit}`,
+                `--format=${format}`,
+                '--name-status',
+                '--follow', // Follow renames
+                '-m',
+                '--',
+                normalizedPath
+            ]);
+
+            const commits: CommitInfo[] = [];
+            const lines = raw.split('\n');
+
+            let currentCommit: any = null;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i].trim();
+                if (!line) continue;
+
+                // Check if it's a header line (has our separator)
+                if (line.includes(separator)) {
+                    // Save previous
+                    if (currentCommit) commits.push(currentCommit);
+
+                    const [hash, parents, author, email, date, message, timestamp] = line.split(separator);
+                    currentCommit = {
+                        hash,
+                        parents: parents ? parents.split(' ') : [],
+                        author,
+                        email,
+                        date,
+                        message,
+                        timestamp: parseInt(timestamp, 10),
+                        files: [] // Will populate status here
+                    };
+                } else if (currentCommit) {
+                    // Try to match status line
+                    // --name-status output: STATUS \t PATH
+                    // Simple split by whitespace/tab is usually robust enough for the Status char
+                    const parts = line.split(/\s+/);
+                    if (parts.length >= 1) {
+                        const statusChar = parts[0][0]; // First char of first part
+                        if (['A', 'M', 'D', 'R', 'C', 'T'].includes(statusChar)) {
+                            currentCommit.files.push({ status: statusChar, path: normalizedPath });
+                        }
+                    }
+                }
+            }
+
+            // Push the last commit
+            if (currentCommit) {
+                commits.push(currentCommit);
+            }
+
+            return commits;
+
         } catch (error) {
             console.error(`Error fetching history for ${filePath}:`, error);
             return [];

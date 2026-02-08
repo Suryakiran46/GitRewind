@@ -3,11 +3,13 @@ import { GraphData, GraphNode } from '../services/graphEngine';
 
 export class TimelinePanel {
     public static currentPanel: TimelinePanel | undefined;
+    public static filePanels: Map<string, TimelinePanel> = new Map();
     public static readonly viewType = 'gitTimeMachine.timeline';
 
     private readonly panel: vscode.WebviewPanel;
     private readonly extensionUri: vscode.Uri;
     private disposables: vscode.Disposable[] = [];
+    private _isRepoPanel: boolean = false;
 
     public static createOrShow(extensionUri: vscode.Uri, graphData: GraphData) {
         const column = vscode.ViewColumn.One;
@@ -18,7 +20,6 @@ export class TimelinePanel {
                 TimelinePanel.currentPanel.update(graphData);
                 return;
             } catch (e) {
-                // Panel was disposed, clear the reference
                 TimelinePanel.currentPanel = undefined;
             }
         }
@@ -33,21 +34,60 @@ export class TimelinePanel {
             }
         );
 
-        TimelinePanel.currentPanel = new TimelinePanel(panel, extensionUri, graphData);
+        TimelinePanel.currentPanel = new TimelinePanel(panel, extensionUri, graphData, true);
     }
 
-    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, graphData: GraphData) {
+    public static createOrShowFile(extensionUri: vscode.Uri, graphData: GraphData, filePath: string) {
+        const column = vscode.ViewColumn.One;
+
+        if (TimelinePanel.filePanels.has(filePath)) {
+            const existingPanel = TimelinePanel.filePanels.get(filePath);
+            if (existingPanel) {
+                try {
+                    existingPanel.reveal(column);
+                    existingPanel.update(graphData);
+                    return;
+                } catch (e) {
+                    TimelinePanel.filePanels.delete(filePath);
+                }
+            }
+        }
+
+        const fileName = filePath.split(/[\\/]/).pop() || 'File';
+        const panel = vscode.window.createWebviewPanel(
+            TimelinePanel.viewType + '.file',
+            `Timeline: ${fileName}`,
+            column,
+            {
+                enableScripts: true,
+                localResourceRoots: [vscode.Uri.joinPath(extensionUri, 'src', 'webview')]
+            }
+        );
+
+        const timelinePanel = new TimelinePanel(panel, extensionUri, graphData, false);
+        TimelinePanel.filePanels.set(filePath, timelinePanel);
+
+        // Cleanup listener specific to this file panel
+        panel.onDidDispose(() => {
+            TimelinePanel.filePanels.delete(filePath);
+            timelinePanel.dispose();
+        });
+    }
+
+    private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri, graphData: GraphData, isRepoPanel: boolean) {
         this.panel = panel;
         this.extensionUri = extensionUri;
+        this._isRepoPanel = isRepoPanel;
 
+        // Only hook standard dispose if it's the repo panel or generic cleanup
+        // For file panels, we handle map cleanup in the static method, 
+        // but we still need to clean up resources here.
         this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
 
         this.panel.webview.onDidReceiveMessage(
             message => {
                 switch (message.command) {
                     case 'selectCommit':
-                        // vscode.window.showInformationMessage(`Selected commit: ${message.hash}`);
-                        // Trigger logic to show details or checkout snapshot
                         vscode.commands.executeCommand('GitRewind.showCommitDetails', message.hash);
                         return;
                     case 'browseCommit':
@@ -101,7 +141,11 @@ export class TimelinePanel {
     }
 
     public dispose() {
-        TimelinePanel.currentPanel = undefined;
+        if (this._isRepoPanel) {
+            TimelinePanel.currentPanel = undefined;
+        }
+        // For file panels, the map entry is removed by the onDidDispose listener in createOrShowFile
+
         this.panel.dispose();
         while (this.disposables.length) {
             const x = this.disposables.pop();
@@ -444,6 +488,11 @@ export class TimelinePanel {
             // Safe text handling for restoration
             const safeMessage = node.message.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+            // Calculate dynamic width for message
+            // graphData.width is the total SVG width. node.x is the start of the node.
+            // 50 is padding/margin.
+            const messageWidth = Math.max(300, (graphData.width - node.x - 50));
+
             return `
                                 <g class="node-group" data-hash="${node.hash}" onclick="selectCommit('${node.hash}')" transform="translate(${node.x}, ${node.y})">
                                     <!-- Avatar (Left of Node) -->
@@ -545,7 +594,7 @@ export class TimelinePanel {
                                     </g>
                                     
                                     <!-- Restored Text Labels with Multiline Support -->
-                                    <foreignObject x="15" y="-14" width="300" height="80">
+                                    <foreignObject x="15" y="-14" width="${messageWidth}" height="80">
                                         <div xmlns="http://www.w3.org/1999/xhtml" style="font-family: var(--vscode-font-family); font-size: 16px; line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; word-wrap: break-word;">
                                             <span style="color: var(--vscode-descriptionForeground); font-weight: bold;">${new Date(node.date).toLocaleDateString()}</span>
                                             <span style="color: var(--vscode-descriptionForeground)"> : </span>
@@ -553,7 +602,8 @@ export class TimelinePanel {
                                         </div>
                                     </foreignObject>
                                 </g>
-                            `}).join('')}
+                            `;
+        }).join('')}
                         </svg>
                     </div>
                     <div style="text-align: center; padding: 20px; min-height: 50px;">

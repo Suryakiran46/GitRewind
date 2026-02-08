@@ -256,4 +256,99 @@ export class GraphEngine {
             width: (maxLaneIndex + 1) * 50 + 400 // Dynamic width based on lanes used + space for messages
         };
     }
+    /**
+     * Process commits into a linear timeline (e.g. for single file history).
+     * Ignoring branching/merging topology, just linking previous to next in the list.
+     */
+    processLinear(commits: GitGraphNode[], hasMore: boolean = false): GraphData {
+        console.log(`[GraphEngine] processLinear called with ${commits.length} commits, hasMore=${hasMore}`);
+        const nodes: GraphNode[] = [];
+        const links: GraphLink[] = [];
+
+        commits.forEach((commit, index) => {
+            // Determine Node Types (simplified for linear view)
+            const types: string[] = [];
+            let primaryType = 'normal';
+
+            // ... (keep existing type logic or simplify)
+            // Reuse logic from process() or extract it? 
+            // For now, let's duplicate the relevant type detection for safety/speed
+            // or we can refactor later. Let's keep it simple.
+
+            // 1. Strict File Status Logic (No Structural Types like Merge/Pull)
+            // User Request: "only allowed icons are flag for origin then edit... delete... add... no other like merge pull"
+
+            // 1. Strict File Status Logic (No Structural Types like Merge/Pull)
+            // User Request: "flag should be also used the graph representing timeline of a file... starting one atleast"
+
+            if (index === commits.length - 1 && !hasMore) {
+                types.push('initial'); // Flag
+                primaryType = 'initial';
+            } else {
+                // For all other commits, check status
+                if (commit.files && commit.files.length > 0) {
+                    const status = commit.files[0].status.toUpperCase();
+                    if (status === 'A') {
+                        types.push('initial'); // Flag (Creation)
+                        primaryType = 'initial';
+                    } else if (status === 'R' || status === 'C') {
+                        types.push('add'); // Plus (Rename/Copy)
+                        primaryType = 'add';
+                    } else if (status === 'D') {
+                        types.push('delete'); // Trash
+                        primaryType = 'delete';
+                    } else {
+                        // M, T, etc. -> Edit
+                        types.push('edit'); // Pencil
+                        primaryType = 'edit';
+                    }
+                } else {
+                    // Fallback
+                    types.push('edit');
+                    primaryType = 'edit';
+                }
+            }
+
+            if (types.length === 0) types.push('normal');
+            if (primaryType === 'normal' && types.length > 0) primaryType = types[0];
+
+            const node: GraphNode = {
+                ...commit,
+                x: 50, // Fixed X for single lane
+                y: index * 80 + 30,
+                lane: 0,
+                color: this.laneColors[0],
+                type: primaryType,
+                types: types
+            };
+            nodes.push(node);
+
+            // Link to previous commit in the list (which is the child in time)
+            // Wait, we process from Newest to Oldest usually.
+            // So commits[0] is newest. commits[1] is older.
+            // We want arrow from commits[0] to commits[1]? 
+            // Standard graph is Parent -> Child (Old -> New).
+            // But we draw links usually Source -> Target.
+            // In process():
+            // links.push({ source: node.hash, target: parentHash ... })
+            // So we want source=New, target=Old.
+
+            if (index < commits.length - 1) {
+                const parent = commits[index + 1];
+                links.push({
+                    source: node.hash,
+                    target: parent.hash,
+                    sourceLane: 0,
+                    targetLane: 0
+                });
+            }
+        });
+
+        return {
+            nodes,
+            links,
+            height: nodes.length * 80 + 200,
+            width: 1200 // Expanded width for full messages
+        };
+    }
 }
